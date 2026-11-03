@@ -1,46 +1,52 @@
-"""
-agents/tools.py — Tool functions that read real simulator data for agent use.
-"""
+"""The only functions specialist agents may call. Each returns data, or None
+when nothing is found. Plug real data in with set_backend()."""
+from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Protocol
 
-
-def get_zone_demand(zone_id: int) -> dict:
-    return {
-        "zone_id": zone_id,
-        "pending_requests": 0,
-        "forecast_15min": 0.0,
-        "baseline_15min": 0.0,
-        "note": "TODO: connect to live engine",
-    }
+from auth import AuthError, require_driver  # noqa: F401  (AuthError re-exported)
 
 
-def get_active_events(tick: int) -> List[dict]:
-    return [{"note": "TODO: connect to EventEngine"}]
+class Backend(Protocol):
+    def zone_forecast(self, zone_id: str) -> Optional[Dict[str, Any]]: ...
+    def driver_earnings(self, driver_id: str) -> Optional[Dict[str, Any]]: ...
+    def onboarding_checklist(self, driver_id: str) -> Optional[List[Dict[str, Any]]]: ...
 
 
-def get_surge_zones() -> List[dict]:
-    return [{"note": "TODO: implement surge zone detection"}]
+_backend: Optional[Backend] = None
 
 
-def get_idle_driver_distribution() -> Dict[int, int]:
-    return {z: 0 for z in range(1, 13)}
+def set_backend(b: Backend) -> None:
+    global _backend
+    _backend = b
 
 
-def get_driver_stats(driver_id: str) -> dict:
-    return {
-        "driver_id": driver_id,
-        "completed_rides": 0,
-        "total_earnings": 0.0,
-        "acceptance_rate": 0.0,
-        "note": "TODO: connect to driver state",
-    }
+def _b() -> Backend:
+    if _backend is None:
+        raise RuntimeError("tools backend not configured")
+    return _backend
 
 
-TOOL_REGISTRY = {
-    "get_zone_demand": get_zone_demand,
-    "get_active_events": get_active_events,
-    "get_surge_zones": get_surge_zones,
-    "get_idle_driver_distribution": get_idle_driver_distribution,
-    "get_driver_stats": get_driver_stats,
+def get_zone_forecast(zone_id: str) -> Optional[Dict[str, Any]]:
+    """e.g. {"zone": "Z1", "demand": 40, "supply": 25, "congestion": 0.3}"""
+    return _b().zone_forecast(str(zone_id).strip())
+
+
+def get_driver_earnings(driver_id: str, token: str) -> Optional[Dict[str, Any]]:
+    """Rejects (AuthError) any driver_id that differs from the one in the JWT.
+    The lookup uses the ID taken from the verified token, never the argument."""
+    authed = require_driver(token, driver_id)
+    return _b().driver_earnings(authed)
+
+
+def get_onboarding_checklist(driver_id: str, token: str) -> Optional[List[Dict[str, Any]]]:
+    """[{"item": "Upload licence", "done": False}, ...] for the authenticated driver."""
+    authed = require_driver(token, driver_id)
+    return _b().onboarding_checklist(authed)
+
+
+TOOLS: Dict[str, Callable[..., Any]] = {
+    "get_zone_forecast": get_zone_forecast,
+    "get_driver_earnings": get_driver_earnings,
+    "get_onboarding_checklist": get_onboarding_checklist,
 }
