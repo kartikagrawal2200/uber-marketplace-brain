@@ -117,3 +117,4 @@ export function ZoneDetailCard({ zone, onClose, onBookInZone = null }) {
     </div>
   );
 }
+

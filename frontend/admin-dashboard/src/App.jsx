@@ -1,42 +1,19 @@
 import React, { useState } from 'react';
 import { useWorld } from 'shared/useWorld.js';
-import { Navbar } from 'shared/components/Navbar.jsx';
-import { CityMap } from 'shared/components/CityMap.jsx';
-import { ZoneDetailCard } from 'shared/components/ZoneDetailCard.jsx';
-import {
-  BrainIcon,
-  TrendingUpIcon,
-  ActivityIcon,
-  SparklesIcon,
-  ShieldIcon,
-  AlertTriangleIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  RefreshCwIcon,
-  FlameIcon,
-  CloudRainIcon,
-  ZapIcon,
-  Spinner,
-  Waiting
-} from 'shared/ui.jsx';
+import { SyntheticBadge } from 'shared/components/SyntheticBadge.jsx';
+import 'shared/uber-design.css';
 
 export default function App() {
   const { world, conn, send } = useWorld();
-  const [selectedZoneId, setSelectedZoneId] = useState(null);
-  const [isRerunningEval, setIsRerunningEval] = useState(false);
+  const [activeNav, setActiveNav] = useState('Dashboard');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isRerunning, setIsRerunning] = useState(false);
 
-  if (!world) {
-    return <Waiting conn={conn} />;
-  }
+  const { eval: ev = {}, scenarios = {}, model = {}, city = {} } = world || {};
 
-  const { scenarios = {}, city = {}, model = {}, eval: ev = {} } = world;
-  const inspectedZone = selectedZoneId ? world.zones.find((z) => z.id === selectedZoneId) : null;
-
-  // Evaluation metrics
   const frBaseline = ev.baseline?.fulfilment ?? ev.fr_baseline ?? 71.2;
   const frAI = ev.model?.fulfilment ?? ev.fr_proposed ?? 79.4;
   const deltaPP = ev.improvement_pp ?? ev.delta_pp ?? (frAI - frBaseline);
-  const isEvalRunning = ev.running || isRerunningEval;
 
   const handleToggleScenario = (name) => {
     send({ type: 'scenario', name });
@@ -47,392 +24,324 @@ export default function App() {
   };
 
   const handleRerunEval = () => {
-    setIsRerunningEval(true);
+    setIsRerunning(true);
     send({ type: 'rerun_eval' });
-    setTimeout(() => setIsRerunningEval(false), 2000);
+    setTimeout(() => setIsRerunning(false), 1500);
   };
 
-  const scenarioCards = [
-    {
-      key: 'stadium',
-      name: 'Stadium Event Ends',
-      icon: '🏟️',
-      badge: 'Demand Surge',
-      description: 'Concert ends at Zone 7 (Stadium). Demand spikes 5x. Watch the AI immediately detect the surge and reposition nearby drivers.',
-      active: !!scenarios.stadium,
-    },
-    {
-      key: 'rain',
-      name: 'Sudden Rainstorm',
-      icon: '🌧️',
-      badge: 'Weather Disruption',
-      description: 'Citywide storm. Demand increases +45%, driving speeds slow down, and available driver supply dips.',
-      active: !!scenarios.rain,
-    },
-    {
-      key: 'surge',
-      name: 'City Rush Hour',
-      icon: '⚡',
-      badge: 'Traffic Rush',
-      description: 'Evening rush hour: Central Station, Tech Park, and Financial District experience intense simultaneous demand spikes.',
-      active: !!scenarios.surge,
-    },
-    {
-      key: 'stale',
-      name: 'Simulate Stale ML Model',
-      icon: '⚠️',
-      badge: 'Resilience Test',
-      description: 'Simulates a 45-minute feature pipeline outage. Demonstrates graceful fallback to trailing-hour moving averages without crashing.',
-      active: !!scenarios.stale,
-    },
+  const navItems = [
+    { label: 'Dashboard', icon: '📊' },
+    { label: 'Users', icon: '👥' },
+    { label: 'Drivers', icon: '🚗' },
+    { label: 'Rides', icon: '🛣️' },
+    { label: 'Analytics', icon: '📈' },
+    { label: 'Settings', icon: '⚙️' },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Top Navigation */}
-      <Navbar
-        app="admin"
-        conn={conn}
-        city={city}
-        tick={world.tick}
-        actions={
+    <div className="min-h-screen bg-[#F6F6FB] flex font-sans text-gray-900">
+      <SyntheticBadge />
+
+      {/* ========================================================
+          DARK LEFT SIDEBAR (matching collage "Admin Dashboard")
+         ======================================================== */}
+      <aside className="w-64 bg-[#111622] text-white flex flex-col justify-between p-5 shrink-0 min-h-screen shadow-xl">
+        <div className="space-y-8">
+          {/* Uber Logo */}
+          <div className="px-3 pt-2">
+            <h1 className="text-2xl font-black tracking-tighter text-white">Uber</h1>
+          </div>
+
+          {/* Nav Items */}
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const isActive = activeNav === item.label;
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => setActiveNav(item.label)}
+                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-bold transition text-left ${
+                    isActive
+                      ? 'bg-[#4B2FD0] text-white shadow-md shadow-[#4B2FD0]/30'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span className="text-base">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Bottom Logout */}
+        <div className="pt-4 border-t border-gray-800">
           <button
-            onClick={handleResetScenarios}
-            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5"
-            title="Reset all simulated scenarios"
+            onClick={() => alert('Logged out.')}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition"
           >
-            <RefreshCwIcon className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Reset Scenarios</span>
+            <span>🚪</span>
+            <span>Logout</span>
           </button>
-        }
-      />
+        </div>
+      </aside>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      {/* ========================================================
+          MAIN CONTENT AREA
+         ======================================================== */}
+      <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
         
-        {/* HERO BENCHMARK CARD: Fulfilment Rate Comparison */}
-        <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+        {/* Top Header Bar */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Dashboard</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Real-time marketplace simulator overview</p>
+          </div>
 
-          <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            {/* Advanced toggle button */}
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                showAdvanced
+                  ? 'bg-[#4B2FD0] text-white border-[#4B2FD0]'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400 shadow-sm'
+              }`}
+            >
+              <span>⚙️</span>
+              <span>{showAdvanced ? 'Hide Advanced' : 'Advanced Scenarios'}</span>
+            </button>
+
+            {/* Notification Bell */}
+            <div className="w-9 h-9 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-sm text-gray-600">
+              🔔
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================
+            ROW OF 4 STAT CARDS (matching collage)
+           ======================================================== */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 1. Total Users */}
+          <div className="uber-card p-4 flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl shrink-0">
+              👥
+            </div>
             <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center gap-1.5">
-                  <SparklesIcon className="w-3.5 h-3.5 text-blue-400" />
-                  CORE EVALUATION BENCHMARK
-                </span>
-                <span className="text-xs text-slate-400 font-mono">
-                  Fixed Protocol: Seed #42 · 60-min Horizon
-                </span>
+              <span className="text-[11px] font-semibold text-gray-400 block">Total Users</span>
+              <span className="text-xl font-black text-gray-900 block mt-0.5">1,250</span>
+            </div>
+          </div>
+
+          {/* 2. Total Drivers */}
+          <div className="uber-card p-4 flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl shrink-0">
+              🚗
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-gray-400 block">Total Drivers</span>
+              <span className="text-xl font-black text-gray-900 block mt-0.5">450</span>
+            </div>
+          </div>
+
+          {/* 3. Total Rides */}
+          <div className="uber-card p-4 flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0">
+              🛣️
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-gray-400 block">Total Rides</span>
+              <span className="text-xl font-black text-gray-900 block mt-0.5">8,320</span>
+            </div>
+          </div>
+
+          {/* 4. Fulfilment Rate / Revenue */}
+          <div className="uber-card p-4 flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl shrink-0">
+              🎯
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-gray-400 block">Fulfilment Rate</span>
+              <span className="text-xl font-black text-gray-900 block mt-0.5">
+                {Number(frAI).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================
+            LINE CHART: "Rides Overview" + BASELINE COMPARISON CARD
+           ======================================================== */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Left: Rides Overview Line Chart (2 cols) */}
+          <div className="lg:col-span-2 uber-card p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-extrabold text-gray-900">Rides Overview</h3>
+                <p className="text-xs text-gray-400">Monthly passenger demand volume</p>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                AI Marketplace Brain vs. Frozen Baseline
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-400 max-w-2xl mt-1 leading-relaxed">
-                Measuring percentage point (pp) improvement in Fulfilment Rate over the lookback baseline dispatch policy (docs/baseline_and_metric.md).
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-600">
+                <span>6 Months</span>
+                <span className="text-[10px] text-gray-400">▼</span>
+              </div>
+            </div>
+
+            {/* Smooth Purple SVG Line Chart */}
+            <div className="h-52 w-full pt-2">
+              <svg viewBox="0 0 500 180" className="w-full h-full overflow-visible">
+                <defs>
+                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#4B2FD0" stopOpacity="0.25" />
+                    <stop offset="100%" stopColor="#4B2FD0" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                {/* Subtle horizontal grid lines */}
+                <line x1="0" y1="30" x2="500" y2="30" stroke="#F1F5F9" strokeWidth="1" />
+                <line x1="0" y1="80" x2="500" y2="80" stroke="#F1F5F9" strokeWidth="1" />
+                <line x1="0" y1="130" x2="500" y2="130" stroke="#F1F5F9" strokeWidth="1" />
+
+                {/* Area under curve */}
+                <path
+                  d="M 20 120 Q 80 140 120 110 T 220 90 T 320 120 T 400 60 T 480 40 L 480 160 L 20 160 Z"
+                  fill="url(#chartGrad)"
+                />
+
+                {/* Purple smooth stroke line */}
+                <path
+                  d="M 20 120 Q 80 140 120 110 T 220 90 T 320 120 T 400 60 T 480 40"
+                  fill="none"
+                  stroke="#4B2FD0"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                />
+
+                {/* Data points */}
+                <circle cx="20" cy="120" r="4" fill="#4B2FD0" />
+                <circle cx="120" cy="110" r="4" fill="#4B2FD0" />
+                <circle cx="220" cy="90" r="4" fill="#4B2FD0" />
+                <circle cx="320" cy="120" r="4" fill="#4B2FD0" />
+                <circle cx="400" cy="60" r="4" fill="#4B2FD0" />
+                <circle cx="480" cy="40" r="5" fill="#4B2FD0" stroke="#FFFFFF" strokeWidth="2" />
+              </svg>
+
+              {/* Month Labels */}
+              <div className="flex justify-between text-xs font-semibold text-gray-400 px-3 pt-2">
+                <span>Jan</span>
+                <span>Feb</span>
+                <span>Mar</span>
+                <span>Apr</span>
+                <span>May</span>
+                <span>Jun</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Baseline vs Proposed Comparison Card (1 col) */}
+          <div className="uber-card p-6 flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                <h3 className="text-sm font-extrabold text-gray-900">Baseline vs AI</h3>
+                <span className="uber-pill-green">+{Number(deltaPP).toFixed(1)} pp</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                Primary evaluation metric comparing predictive dispatch with frozen lookback.
               </p>
             </div>
 
-            {/* Re-run Protocol Button */}
+            <div className="space-y-3">
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-gray-400 block text-[10px] font-semibold">AI Proposed System</span>
+                  <span className="font-extrabold text-base text-[#4B2FD0]">{Number(frAI).toFixed(1)}%</span>
+                </div>
+                <span className="text-[11px] font-bold text-gray-500">Fulfilment</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-gray-400 block text-[10px] font-semibold">Frozen Baseline</span>
+                  <span className="font-extrabold text-base text-gray-700">{Number(frBaseline).toFixed(1)}%</span>
+                </div>
+                <span className="text-[11px] font-bold text-gray-500">Fulfilment</span>
+              </div>
+            </div>
+
             <button
               onClick={handleRerunEval}
-              disabled={isEvalRunning}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-500/20 transition flex items-center gap-2 disabled:opacity-50"
+              disabled={isRerunning}
+              className="uber-btn-black py-2.5 text-xs"
             >
-              {isEvalRunning ? (
-                <>
-                  <Spinner /> Running 60-min Protocol...
-                </>
-              ) : (
-                <>
-                  <RefreshCwIcon className="w-4 h-4" /> Re-run 60-min Evaluation
-                </>
-              )}
+              {isRerunning ? 'Re-running Protocol...' : 'Re-run Evaluation (Seed 42)'}
             </button>
           </div>
-
-          {/* Metric Comparison Hero Display */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
-            {/* Primary Delta PP Card */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/40 shadow-inner">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                <TrendingUpIcon className="w-4 h-4 text-emerald-400" /> Fulfilment Improvement
-              </span>
-              <div className="text-4xl sm:text-5xl font-extrabold text-white mt-2 font-mono flex items-baseline gap-2">
-                <span className="text-emerald-400">+{Number(deltaPP).toFixed(1)}</span>
-                <span className="text-xl font-bold text-emerald-300">pp</span>
-              </div>
-              <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                <strong>{Number(deltaPP).toFixed(1)}% more riders</strong> successfully completed rides that static lookback dispatch would have dropped or cancelled.
-              </p>
-            </div>
-
-            {/* AI Proposed Model Card */}
-            <div className="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/80">
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
-                <BrainIcon className="w-4 h-4 text-blue-400" /> AI Forecaster + Positioning
-              </span>
-              <div className="text-4xl sm:text-5xl font-extrabold text-white mt-2 font-mono">
-                {Number(frAI).toFixed(1)}%
-              </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-3">
-                <div 
-                  className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-700" 
-                  style={{ width: `${Math.min(100, frAI)}%` }}
-                />
-              </div>
-              <p className="text-xs text-slate-400 mt-2">
-                10-min horizon demand forecasting with anti-crowding driver distribution.
-              </p>
-            </div>
-
-            {/* Frozen Baseline Card */}
-            <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-800">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <ShieldIcon className="w-4 h-4 text-slate-400" /> Frozen Baseline Lookback
-              </span>
-              <div className="text-4xl sm:text-5xl font-extrabold text-slate-300 mt-2 font-mono">
-                {Number(frBaseline).toFixed(1)}%
-              </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-3">
-                <div 
-                  className="h-full bg-slate-600 rounded-full transition-all duration-700" 
-                  style={{ width: `${Math.min(100, frBaseline)}%` }}
-                />
-              </div>
-              <p className="text-xs text-slate-400 mt-2">
-                Nearest-zone dispatch with 15-min trailing lookback (no predictive repositioning).
-              </p>
-            </div>
-          </div>
-
-          {/* Secondary Metrics Bar */}
-          <div className="mt-5 pt-4 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-            <div>
-              <span className="text-slate-400">Avg Wait Time:</span>
-              <div className="font-bold text-white text-sm mt-0.5">
-                2m 58s <span className="text-emerald-400 font-semibold">(-29% vs Baseline)</span>
-              </div>
-            </div>
-            <div>
-              <span className="text-slate-400">Driver Idle Time:</span>
-              <div className="font-bold text-white text-sm mt-0.5">
-                18.2% <span className="text-emerald-400 font-semibold">(-11.3 pp idle)</span>
-              </div>
-            </div>
-            <div>
-              <span className="text-slate-400">Surge Accuracy:</span>
-              <div className="font-bold text-white text-sm mt-0.5">
-                89.4% (5-min lead time)
-              </div>
-            </div>
-            <div>
-              <span className="text-slate-400">Model Pipeline:</span>
-              <div className="font-bold text-white text-sm mt-0.5 flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${model.status === 'healthy' || model.status === 'OK' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                {model.version || 'zonal-forecast-v3.2'}
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* DEMO SCENARIO SIMULATOR (Judges/Teachers Interactive Controls) */}
-        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <ActivityIcon className="w-5 h-5 text-amber-400" />
-                Interactive Demo Scenario Triggers
-              </h2>
-              <p className="text-xs text-slate-400">
-                Click any scenario button to simulate dynamic city events in real time.
-              </p>
-            </div>
-            <div className="text-xs text-slate-400">
-              Active Events: <strong>{Object.values(scenarios).filter(Boolean).length} of 4</strong>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {scenarioCards.map((scen) => (
+        {/* ========================================================
+            ADVANCED DRAWER / PAGE (Scenarios & Model Health)
+           ======================================================== */}
+        {showAdvanced && (
+          <div className="uber-card p-6 space-y-5 border-2 border-[#4B2FD0]/30 animate-fadeIn">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
+                  <span>⚡</span> Advanced Simulator Controls & Scenarios
+                </h3>
+                <p className="text-xs text-gray-400">Trigger market stress tests to evaluate AI repositioning</p>
+              </div>
               <button
-                key={scen.key}
-                type="button"
-                onClick={() => handleToggleScenario(scen.key)}
-                className={`p-4 rounded-2xl border text-left transition-all duration-200 relative overflow-hidden group ${
-                  scen.active
-                    ? 'bg-gradient-to-br from-blue-950/80 to-slate-900 border-blue-500 shadow-lg shadow-blue-500/20 ring-1 ring-blue-500'
-                    : 'bg-slate-850/60 border-slate-800 hover:bg-slate-800/80 hover:border-slate-700'
-                }`}
+                onClick={handleResetScenarios}
+                className="text-xs font-bold text-gray-600 hover:text-black px-3 py-1.5 rounded-lg border border-gray-200"
               >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-2xl p-2 rounded-xl bg-slate-800/80 border border-slate-700" role="img" aria-label={scen.name}>
-                    {scen.icon}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                    scen.active 
-                      ? 'bg-blue-500 text-white shadow' 
-                      : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {scen.active ? 'ACTIVE' : 'READY'}
-                  </span>
-                </div>
-
-                <h3 className="font-bold text-sm text-white group-hover:text-blue-300 transition-colors">
-                  {scen.name}
-                </h3>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                  {scen.description}
-                </p>
+                Reset All
               </button>
-            ))}
-          </div>
-
-          {/* Stale Model Fallback Banner if active */}
-          {scenarios.stale && (
-            <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs space-y-1.5 animate-fadeIn">
-              <div className="flex items-center gap-2 font-bold text-amber-400">
-                <AlertTriangleIcon className="w-4 h-4 text-amber-400" />
-                <span>Graceful Degraded Mode Active: ML Pipeline Outage</span>
-              </div>
-              <p className="text-slate-300 leading-relaxed">
-                Features have exceeded freshness threshold. The system has automatically switched to a robust moving-average fallback heuristic. Positioning recommendations continue to operate reactively with safety margins.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* CITY DIGITAL TWIN MAP & ZONE INTELLIGENCE */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
-          {/* Full City Map (7 cols) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <ActivityIcon className="w-4 h-4 text-blue-400" />
-                    City Digital Twin (12 Zones Live)
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Click any zone to inspect deep dispatch intelligence.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-slate-400">Total Demand: <strong className="text-white">{Math.round(city.demand_total || city.demand || 68)} req/min</strong></span>
-                  <span>•</span>
-                  <span className="text-slate-400">Fleet: <strong className="text-white">{city.supply_total || city.supply || 64} cars</strong></span>
-                </div>
-              </div>
-
-              {/* City Map in Admin Mode */}
-              <CityMap
-                zones={world.zones}
-                mode="admin"
-                selectedZone={selectedZoneId}
-                onSelectZone={(id) => setSelectedZoneId(id)}
-              />
             </div>
 
-            {/* Inspect Zone Card */}
-            {inspectedZone && (
-              <ZoneDetailCard
-                zone={inspectedZone}
-                onClose={() => setSelectedZoneId(null)}
-              />
-            )}
-          </div>
-
-          {/* Evaluation Runs & Model Health (5 cols) */}
-          <div className="lg:col-span-5 space-y-5">
-            
-            {/* Model Architecture & Health */}
-            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <BrainIcon className="w-4 h-4 text-blue-400" />
-                  Model Health & ML Pipeline
-                </h3>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  model.status === 'healthy' || model.status === 'OK'
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                }`}>
-                  {model.status === 'healthy' || model.status === 'OK' ? 'HEALTHY' : 'FALLBACK MODE'}
-                </span>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-800/60">
-                  <span className="text-slate-400">Model Version:</span>
-                  <span className="text-white font-mono font-semibold">{model.version || 'zonal-forecast-v3.2'}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800/60">
-                  <span className="text-slate-400">Feature Freshness:</span>
-                  <span className="text-white font-mono">{model.age_s || model.age || 45} seconds</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800/60">
-                  <span className="text-slate-400">Mean Absolute Error (MAE):</span>
-                  <span className="text-white font-mono font-semibold">{model.mae || '0.82'} req/min</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800/60">
-                  <span className="text-slate-400">Active LLM Provider:</span>
-                  <span className="text-emerald-400 font-semibold">Gemini API (4 Rotated Keys)</span>
-                </div>
-              </div>
+            {/* Scenario buttons */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { key: 'stadium', label: 'Stadium Ends', icon: '🏟️', desc: '5x surge at Zone 7' },
+                { key: 'rain', label: 'Rainstorm', icon: '🌧️', desc: '+45% demand citywide' },
+                { key: 'surge', label: 'Rush Hour', icon: '⚡', desc: 'Station & Tech Park rush' },
+                { key: 'stale', label: 'Stale ML Model', icon: '⚠️', desc: 'Tests fallback heuristic' },
+              ].map((s) => {
+                const active = scenarios[s.key];
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => handleToggleScenario(s.key)}
+                    className={`p-3.5 rounded-2xl border text-left transition ${
+                      active
+                        ? 'bg-[#EEECFB] border-[#4B2FD0] shadow-sm'
+                        : 'bg-white border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-lg">{s.icon}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        active ? 'bg-[#4B2FD0] text-white' : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        {active ? 'ON' : 'OFF'}
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-gray-900 block">{s.label}</span>
+                    <span className="text-[10px] text-gray-400 block mt-0.5">{s.desc}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Evaluation Run History Table */}
-            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <ActivityIcon className="w-4 h-4 text-emerald-400" />
-                  Recent Simulation Runs
-                </h3>
-                <span className="text-xs text-slate-400 font-mono">Sample: 5,000 trips</span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="text-slate-500 border-b border-slate-800">
-                      <th className="pb-2 font-semibold">Scenario</th>
-                      <th className="pb-2 text-right font-semibold">Baseline</th>
-                      <th className="pb-2 text-right font-semibold">AI System</th>
-                      <th className="pb-2 text-right font-semibold">Gain</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 font-mono">
-                    <tr className="text-slate-300">
-                      <td className="py-2 font-sans font-medium text-white">Current Live</td>
-                      <td className="py-2 text-right text-slate-400">{Number(frBaseline).toFixed(1)}%</td>
-                      <td className="py-2 text-right text-blue-400 font-bold">{Number(frAI).toFixed(1)}%</td>
-                      <td className="py-2 text-right text-emerald-400 font-bold">+{Number(deltaPP).toFixed(1)} pp</td>
-                    </tr>
-                    <tr className="text-slate-400">
-                      <td className="py-2 font-sans">Stadium Event</td>
-                      <td className="py-2 text-right">68.4%</td>
-                      <td className="py-2 text-right text-slate-300">78.1%</td>
-                      <td className="py-2 text-right text-emerald-400">+9.7 pp</td>
-                    </tr>
-                    <tr className="text-slate-400">
-                      <td className="py-2 font-sans">Rainstorm</td>
-                      <td className="py-2 text-right">65.2%</td>
-                      <td className="py-2 text-right text-slate-300">73.8%</td>
-                      <td className="py-2 text-right text-emerald-400">+8.6 pp</td>
-                    </tr>
-                    <tr className="text-slate-400">
-                      <td className="py-2 font-sans">Normal Baseline</td>
-                      <td className="py-2 text-right">71.2%</td>
-                      <td className="py-2 text-right text-slate-300">79.4%</td>
-                      <td className="py-2 text-right text-emerald-400">+8.2 pp</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+            {/* Model Health Info */}
+            <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between text-xs text-gray-500 gap-2">
+              <span>Model: <strong>{model.version || 'zonal-forecast-v3.2'}</strong></span>
+              <span>Status: <strong className={model.status === 'healthy' || model.status === 'OK' ? 'text-emerald-600' : 'text-amber-600'}>{model.status || 'Healthy'}</strong></span>
+              <span>Feature Age: <strong>{model.age_s || model.age || 45}s</strong></span>
+              <span>MAE: <strong>{model.mae || '0.82'} req/min</strong></span>
             </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

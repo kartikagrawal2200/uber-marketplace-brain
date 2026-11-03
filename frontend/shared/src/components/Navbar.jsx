@@ -124,3 +124,4 @@ export function Navbar({ app, conn, city, tick, actions }) {
     </>
   );
 }
+

@@ -6,3 +6,5 @@ export * from './components/Navbar.jsx';
 export * from './components/CityMap.jsx';
 export * from './components/ZoneDetailCard.jsx';
 export * from './components/DemoGuideModal.jsx';
+export * from './components/SyntheticBadge.jsx';
+export * from './components/MapMock.jsx';
