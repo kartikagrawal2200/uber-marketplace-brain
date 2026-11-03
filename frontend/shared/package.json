@@ -1,0 +1,15 @@
+{
+  "name": "shared",
+  "version": "0.1.0",
+  "description": "Shared utilities, API client, types, and components for uber-marketplace-brain frontend apps",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
