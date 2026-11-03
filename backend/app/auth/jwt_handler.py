@@ -1,64 +1,37 @@
-"""
-auth/jwt_handler.py — JWT creation and validation.
+"""JWT verification. HS256 by default; secret from JWT_SECRET; the driver ID
+is read from the claim named by JWT_DRIVER_CLAIM (default "sub")."""
+from __future__ import annotations
 
-TODO:
-  - Implement create_access_token(data: dict) -> str
-  - Implement decode_access_token(token: str) -> dict | None
-  - Add refresh token support
-"""
-
-from datetime import datetime, timedelta, timezone
+import hmac
+import os
 from typing import Optional
 
-from jose import JWTError, jwt
-from fastapi import HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Depends
-
-from app.config import settings
-
-security = HTTPBearer()
+import jwt  # PyJWT
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Create a signed JWT access token.
-    """
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.jwt_expire_minutes)
-    )
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+class AuthError(Exception):
+    pass
 
 
-def decode_access_token(token: str) -> dict:
-    """
-    Decode and validate a JWT token.
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+def verify_token(token: Optional[str], secret: Optional[str] = None) -> str:
+    secret = secret or os.environ.get("JWT_SECRET")
+    if not secret:
+        raise AuthError("server has no JWT secret configured")
+    if not token:
+        raise AuthError("missing token")
     try:
-        payload = jwt.decode(
-            token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
-        )
-        return payload
-    except JWTError:
-        raise credentials_exception
+        claims = jwt.decode(token, secret, algorithms=["HS256"], options={"require": ["exp"]})
+    except jwt.PyJWTError as e:
+        raise AuthError("invalid token") from e
+    driver_id = claims.get(os.environ.get("JWT_DRIVER_CLAIM", "sub"))
+    if not driver_id:
+        raise AuthError("token has no driver id")
+    return str(driver_id)
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> dict:
-    return decode_access_token(credentials.credentials)
-
-
-async def require_driver(user: dict = Depends(get_current_user)) -> dict:
-    return user
-
-
-async def require_admin(user: dict = Depends(get_current_user)) -> dict:
-    return user
+def require_driver(token: Optional[str], driver_id: Optional[str]) -> str:
+    """Return the authenticated driver ID; raise if it differs from `driver_id`."""
+    authed = verify_token(token)
+    if not driver_id or not hmac.compare_digest(authed.encode(), str(driver_id).encode()):
+        raise AuthError("driver id does not match token")
+    return authed
