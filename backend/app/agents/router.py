@@ -1,45 +1,43 @@
-"""
-agents/router.py — Agent router: picks the right specialist agent.
-"""
+"""Classify a driver question as marketplace / earnings / onboarding.
+Rule-based keywords first; the LLM is asked only when the rules are unclear."""
+from __future__ import annotations
 
-import logging
-from typing import Optional
+import re
+from typing import Optional, Tuple
 
-logger = logging.getLogger(__name__)
+LABELS = ("marketplace", "earnings", "onboarding")
 
-AGENT_MARKETPLACE = "marketplace"
-AGENT_EARNINGS    = "earnings"
-AGENT_ONBOARDING  = "onboarding"
-
-
-def classify_intent(query: str) -> str:
-    q = query.lower()
-    if any(w in q for w in ["zone", "where", "move", "surge", "demand", "busy"]):
-        return AGENT_MARKETPLACE
-    if any(w in q for w in ["earn", "money", "income", "shift", "hour", "pay"]):
-        return AGENT_EARNINGS
-    if any(w in q for w in ["start", "new", "first", "onboard", "begin", "how to"]):
-        return AGENT_ONBOARDING
-    return AGENT_MARKETPLACE
+KEYWORDS = {
+    "marketplace": [r"demand", r"supply", r"surge", r"zone", r"busy", r"hot ?spot", r"traffic",
+                    r"congest\w*", r"forecast", r"where should i", r"idle", r"position\w*"],
+    "earnings": [r"earn\w*", r"income", r"pay\w*", r"paid", r"money", r"fare", r"tips?",
+                 r"how much did i", r"balance", r"commission", r"bonus\w*", r"weekly total"],
+    "onboarding": [r"onboard\w*", r"sign ?up", r"regist\w*", r"documents?", r"licen[sc]e",
+                   r"verif\w*", r"background check", r"checklist", r"activat\w*",
+                   r"inspection", r"training", r"getting started", r"approv\w*"],
+}
+_COMPILED = {k: [re.compile(rf"\b{p}\b", re.I) for p in v] for k, v in KEYWORDS.items()}
 
 
-async def route(
-    query: str,
-    context: Optional[dict] = None,
-) -> dict:
-    agent_type = classify_intent(query)
-    logger.info(f"Routing to {agent_type} agent: '{query[:60]}...'")
+def rule_classify(question: str) -> Optional[str]:
+    scores = {k: sum(1 for p in pats if p.search(question)) for k, pats in _COMPILED.items()}
+    ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+    (top, s1), (_, s2) = ranked[0], ranked[1]
+    return top if s1 > 0 and s1 > s2 else None
 
-    if agent_type == AGENT_MARKETPLACE:
-        response = f"[{AGENT_MARKETPLACE} stub] TODO: implement MarketplaceAgent"
-    elif agent_type == AGENT_EARNINGS:
-        response = f"[{AGENT_EARNINGS} stub] TODO: implement EarningsAgent"
-    else:
-        response = f"[{AGENT_ONBOARDING} stub] TODO: implement OnboardingAgent"
 
-    return {
-        "agent_type": agent_type,
-        "response": response,
-        "query": query,
-        "context": context,
-    }
+class Router:
+    def __init__(self, provider):
+        self.provider = provider
+
+    def classify(self, question: str) -> Tuple[Optional[str], str]:
+        """-> (label or None, method: "rules" | "llm" | "unclear")"""
+        label = rule_classify(question)
+        if label:
+            return label, "rules"
+        res = self.provider.generate(
+            f"Classify this driver question as exactly one of: marketplace, earnings, onboarding.\n"
+            f"Question: {question}\nReply with the single word only.",
+            system="You are a strict classifier.", fallback="unclear")
+        found = next((l for l in LABELS if l in res.text.lower()), None) if res.source != "template" else None
+        return (found, "llm") if found else (None, "unclear")
