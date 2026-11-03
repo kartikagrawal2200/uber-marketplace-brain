@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/* Design tokens. Look: transit wayfinding on cool paper, ink-navy type, taxi-signal yellow for the one thing that matters. */
+@theme static {
+  --font-display: "Archivo", "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --color-ground: #e9edf1;
+  --color-panel: #ffffff;
+  --color-sunk: #f2f5f8;
+  --color-ink: #0e1a2b;
+  --color-line: #cfd7e1;
+  --color-muted: #56667d;
+  --color-signal: #ffc21a;
+  --color-accent: #2b3be0;
+  --color-on-accent: #ffffff;
+  --color-ok: #0d6b4b;
+  --color-okbg: #d6f1e5;
+  --color-warn: #6b3d00;
+  --color-warnbg: #ffe2a0;
+  --color-warnline: #d99a14;
+  --color-bad: #a8231b;
+  --color-badbg: #fcdcd8;
+  --color-fleet: #1b6f93;
+}
+
+[data-app="rider"]  { --color-accent: #2b3be0; --color-on-accent: #ffffff; }
+[data-app="driver"] { --color-accent: #ffc21a; --color-on-accent: #0e1a2b; }
+[data-app="admin"]  { --color-accent: #0e1a2b; --color-on-accent: #ffffff; }
+
+html { color-scheme: light; }
+body { background: var(--color-ground); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+
+/* Condensed heavy signage face for numerals and headlines */
+.sign { font-family: var(--font-display); font-stretch: 75%; font-weight: 800; letter-spacing: -0.01em; line-height: 1; }
+.num { font-variant-numeric: tabular-nums; }
+.hazard { background-image: repeating-linear-gradient(135deg, var(--color-signal) 0 10px, var(--color-ink) 10px 20px); }
+
+@keyframes ring { 0% { box-shadow: 0 0 0 0 rgb(14 26 43 / .55); } 100% { box-shadow: 0 0 0 12px rgb(14 26 43 / 0); } }
+.rec-ring { animation: ring 1.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .rec-ring { animation: none; box-shadow: 0 0 0 3px var(--color-ink); }
+  * { scroll-behavior: auto !important; }
+}
+:focus-visible { outline: 3px solid var(--color-ink); outline-offset: 2px; }
+button:disabled { cursor: not-allowed; }
