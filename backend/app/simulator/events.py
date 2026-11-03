@@ -1,97 +1,59 @@
-"""
-simulator/events.py — Special events: stadium ends, surge zones, rain bursts.
-"""
-
+"""events.py -- scheduled demand spikes, surge pricing, forced rain.
+*** SYNTHETIC DATA: all events are simulated scenarios. ***  Deps: numpy, stdlib."""
 from dataclasses import dataclass
-from typing import List, Dict
-from enum import Enum
-
-
-class EventType(str, Enum):
-    STADIUM_END   = "stadium_end"
-    SURGE_ZONE    = "surge_zone"
-    RAIN_BURST    = "rain_burst"
-    ROAD_CLOSURE  = "road_closure"
-
+import numpy as np
+from city import N_ZONES, get_neighbors
 
 @dataclass
-class CityEvent:
-    event_id: str
-    event_type: EventType
-    zone_id: int
-    start_tick: int
-    duration_ticks: int
-    demand_multiplier: float = 1.0
-    traffic_delta: float = 0.0
-    description: str = ""
+class Event:
+    kind: str      # stadium_end | surge | rain
+    zone: int      # -1 for city-wide (rain)
+    end: int       # tick when it expires (exclusive)
+    value: float   # demand magnitude / surge multiplier / (2.0 if heavy rain else 1.0)
+    value2: float = 1.0   # stadium: neighbor magnitude
 
-    def is_active(self, tick: int) -> bool:
-        return self.start_tick <= tick < self.start_tick + self.duration_ticks
+class EventManager:
+    """Holds active events. `now` is updated by advance(t) each tick, so trigger_* use the current tick."""
+    def __init__(self):
+        self.now, self.events = 0, []
 
+    def advance(self, now):
+        self.now = now
+        self.events = [e for e in self.events if e.end > now]
 
-class EventEngine:
-    def __init__(self) -> None:
-        self.events: List[CityEvent] = []
-        self._load_default_events()
+    def trigger_stadium_end(self, zone, duration=30, magnitude=4.0, neighbor_magnitude=1.8):
+        """Demand spike in stadium zone (x magnitude) and its neighbors for ~duration minutes."""
+        self.events.append(Event("stadium_end", zone, self.now + duration, magnitude, neighbor_magnitude))
 
-    def _load_default_events(self) -> None:
-        self.events = [
-            CityEvent(
-                event_id="evt_stadium_1",
-                event_type=EventType.STADIUM_END,
-                zone_id=7,
-                start_tick=60,
-                duration_ticks=24,
-                demand_multiplier=5.0,
-                traffic_delta=0.3,
-                description="Stadium event ends — 50,000 fans leaving Zone 7",
-            ),
-            CityEvent(
-                event_id="evt_rain_1",
-                event_type=EventType.RAIN_BURST,
-                zone_id=0,
-                start_tick=150,
-                duration_ticks=18,
-                demand_multiplier=1.4,
-                traffic_delta=0.15,
-                description="Sudden rain across all zones",
-            ),
-            CityEvent(
-                event_id="evt_surge_1",
-                event_type=EventType.SURGE_ZONE,
-                zone_id=3,
-                start_tick=240,
-                duration_ticks=12,
-                demand_multiplier=2.5,
-                traffic_delta=0.1,
-                description="Airport surge — flight cluster landing",
-            ),
-        ]
+    def trigger_surge(self, zone, multiplier=2.0, duration=30):
+        """Price surge multiplier in `zone` for `duration` minutes."""
+        self.events.append(Event("surge", zone, self.now + duration, multiplier))
 
-    def get_active_events(self, tick: int) -> List[CityEvent]:
-        return [e for e in self.events if e.is_active(tick)]
+    def trigger_rain(self, heavy=False, duration=45):
+        """Force rain (or heavy_rain) city-wide for `duration` minutes."""
+        self.events.append(Event("rain", -1, self.now + duration, 2.0 if heavy else 1.0))
 
-    def get_demand_multipliers(self, tick: int) -> Dict[int, float]:
-        multipliers: Dict[int, float] = {}
-        for event in self.get_active_events(tick):
-            if event.zone_id == 0:
-                for z in range(1, 13):
-                    multipliers[z] = multipliers.get(z, 1.0) * event.demand_multiplier
-            else:
-                multipliers[event.zone_id] = (
-                    multipliers.get(event.zone_id, 1.0) * event.demand_multiplier
-                )
-        return multipliers
+    def demand_factors(self):
+        """Per-zone EventFactor array (product of active stadium events)."""
+        f = np.ones(N_ZONES)
+        for e in self.events:
+            if e.kind == "stadium_end":
+                f[e.zone] *= e.value
+                for n in get_neighbors(e.zone): f[n] *= e.value2
+        return f
 
-    def get_traffic_deltas(self, tick: int) -> Dict[int, float]:
-        deltas: Dict[int, float] = {}
-        for event in self.get_active_events(tick):
-            if event.zone_id == 0:
-                for z in range(1, 13):
-                    deltas[z] = deltas.get(z, 0.0) + event.traffic_delta
-            else:
-                deltas[event.zone_id] = deltas.get(event.zone_id, 0.0) + event.traffic_delta
-        return deltas
+    def surge_array(self):
+        """Per-zone event-driven surge multiplier (max of active surges, default 1.0)."""
+        s = np.ones(N_ZONES)
+        for e in self.events:
+            if e.kind == "surge": s[e.zone] = max(s[e.zone], e.value)
+        return s
 
-    def trigger_event(self, event: CityEvent) -> None:
-        self.events.append(event)
+    def forced_weather(self):
+        """'heavy_rain' / 'rain' while a rain event is active, else None."""
+        v = [e.value for e in self.events if e.kind == "rain"]
+        return None if not v else ("heavy_rain" if max(v) > 1.5 else "rain")
+
+    def active(self):
+        """Human-readable list of active events."""
+        return [f"{e.kind}@{e.zone if e.zone >= 0 else 'city'} (until t={e.end})" for e in self.events]
