@@ -1,35 +1,49 @@
-"""
-recommender/anti_crowding.py — Prevents too many drivers from moving to the same zone.
-"""
+"""Anti-crowding: remember which zones drivers accepted, so the next driver
+sees those zones as less attractive and gets a different destination."""
+from __future__ import annotations
 
-from typing import Dict, List
-from app.recommender.positioning import PositioningHint, PositioningAction
+import threading
+import time
+from typing import Callable, Dict, Optional, Tuple
 
 
-class AntiCrowdingFilter:
-    def __init__(self, max_drivers_per_zone: int = 5) -> None:
-        self.max_drivers_per_zone = max_drivers_per_zone
-        self._inflight: Dict[int, int] = {}
+class AntiCrowding:
+    """Tracks accepted recommendations (one live acceptance per driver).
 
-    def filter(self, hints: List[PositioningHint]) -> List[PositioningHint]:
-        filtered = []
-        for hint in hints:
-            if hint.action == PositioningAction.GO and hint.target_zone_id is not None:
-                count = self._inflight.get(hint.target_zone_id, 0)
-                if count >= self.max_drivers_per_zone:
-                    hint.action = PositioningAction.STAY
-                    hint.target_zone_id = None
-                    hint.reason = f"Zone already receiving {count} drivers — staying put."
-                else:
-                    self._inflight[hint.target_zone_id] = count + 1
-            filtered.append(hint)
-        return filtered
+    penalty(zone) is in the same unit as forecast demand/supply (rides/hour):
+    each driver already heading to a zone is expected to absorb `per_driver`
+    of that zone's shortfall.
+    """
 
-    def record_acceptance(self, zone_id: int) -> None:
-        self._inflight[zone_id] = self._inflight.get(zone_id, 0) + 1
+    def __init__(self, ttl_s: float = 600.0, per_driver: float = 1.0,
+                 clock: Callable[[], float] = time.monotonic):
+        self.ttl_s = ttl_s
+        self.per_driver = per_driver
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._accepted: Dict[str, Tuple[str, float]] = {}  # driver -> (zone, expires_at)
 
-    def reset_tick(self) -> None:
-        self._inflight.clear()
+    def _purge(self) -> None:
+        now = self._clock()
+        for d in [d for d, (_, exp) in self._accepted.items() if exp <= now]:
+            del self._accepted[d]
 
-    def get_inflight_counts(self) -> Dict[int, int]:
-        return dict(self._inflight)
+    def record_acceptance(self, driver_id: str, zone_id: str) -> None:
+        """A driver accepted a recommendation. Replaces their previous one."""
+        with self._lock:
+            self._purge()
+            self._accepted[driver_id] = (zone_id, self._clock() + self.ttl_s)
+
+    def release(self, driver_id: str) -> None:
+        """Driver arrived, cancelled, or went offline."""
+        with self._lock:
+            self._accepted.pop(driver_id, None)
+
+    def pending(self, zone_id: str, exclude_driver: Optional[str] = None) -> int:
+        with self._lock:
+            self._purge()
+            return sum(1 for d, (z, _) in self._accepted.items()
+                       if z == zone_id and d != exclude_driver)
+
+    def penalty(self, zone_id: str, exclude_driver: Optional[str] = None) -> float:
+        return self.pending(zone_id, exclude_driver) * self.per_driver
