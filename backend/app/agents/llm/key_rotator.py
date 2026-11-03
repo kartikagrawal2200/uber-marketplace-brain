@@ -1,11 +1,4 @@
-"""Round-robin Gemini API key rotation with cooldowns.
-
-- acquire(): next usable key (skips disabled / cooling-down keys), or None.
-- report_rate_limited(): cooldown (Retry-After or default) after HTTP 429.
-- report_invalid(): permanently disable after 401/403/API_KEY_INVALID.
-- report_error(): short cooldown after 5xx / network errors.
-Keys come from GEMINI_API_KEYS (comma-separated) or GEMINI_API_KEY.
-"""
+"""Round-robin Gemini API key rotation with cooldowns."""
 from __future__ import annotations
 
 import os
@@ -27,7 +20,10 @@ class KeyRotator:
     @classmethod
     def from_env(cls, **kw) -> "KeyRotator":
         raw = os.environ.get("GEMINI_API_KEYS") or os.environ.get("GEMINI_API_KEY") or ""
-        return cls(raw.split(","), **kw)
+        keys = [k.strip() for k in raw.split(",") if k.strip()]
+        if not keys:
+            keys = [os.environ.get(f"GEMINI_KEY_{i}", "") for i in range(1, 5)]
+        return cls([k for k in keys if k], **kw)
 
     def __len__(self) -> int:
         return len(self._keys)
@@ -35,11 +31,13 @@ class KeyRotator:
     def acquire(self) -> Optional[str]:
         with self._lock:
             now, n = self._clock(), len(self._keys)
+            if n == 0:
+                return None
             for i in range(n):
                 idx = (self._next + i) % n
                 k = self._keys[idx]
                 if k not in self._disabled and self._cool_until.get(k, 0.0) <= now:
-                    self._next = (idx + 1) % n  # rotate so load spreads across keys
+                    self._next = (idx + 1) % n
                     return k
             return None
 

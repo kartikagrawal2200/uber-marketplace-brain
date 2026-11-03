@@ -1,5 +1,4 @@
-"""Classify a driver question as marketplace / earnings / onboarding.
-Rule-based keywords first; the LLM is asked only when the rules are unclear."""
+"""Classify a driver question as marketplace / earnings / onboarding."""
 from __future__ import annotations
 
 import re
@@ -8,22 +7,36 @@ from typing import Optional, Tuple
 LABELS = ("marketplace", "earnings", "onboarding")
 
 KEYWORDS = {
-    "marketplace": [r"demand", r"supply", r"surge", r"zone", r"busy", r"hot ?spot", r"traffic",
-                    r"congest\w*", r"forecast", r"where should i", r"idle", r"position\w*"],
-    "earnings": [r"earn\w*", r"income", r"pay\w*", r"paid", r"money", r"fare", r"tips?",
-                 r"how much did i", r"balance", r"commission", r"bonus\w*", r"weekly total"],
-    "onboarding": [r"onboard\w*", r"sign ?up", r"regist\w*", r"documents?", r"licen[sc]e",
-                   r"verif\w*", r"background check", r"checklist", r"activat\w*",
-                   r"inspection", r"training", r"getting started", r"approv\w*"],
+    "marketplace": ("demand", "surge", "busy", "crowded", "quiet", "zone",
+                    "relocate", "reposition", "where", "destination", "traffic", "heat"),
+    "earnings":    ("earn", "earning", "earnings", "money", "fare", "fares",
+                    "payout", "payouts", "paid", "trip", "trips", "bonus", "bonuses",
+                    "incentive", "incentives", "tip", "tips", "hour", "hours"),
+    "onboarding":  ("sign up", "signup", "register", "registration", "document",
+                    "documents", "licence", "license", "upload", "onboard",
+                    "onboarding", "checklist", "verify", "verification", "approved", "start driving"),
 }
-_COMPILED = {k: [re.compile(rf"\b{p}\b", re.I) for p in v] for k, v in KEYWORDS.items()}
+
+_WORD = re.compile(r"[a-z0-9_]+")
 
 
 def rule_classify(question: str) -> Optional[str]:
-    scores = {k: sum(1 for p in pats if p.search(question)) for k, pats in _COMPILED.items()}
-    ranked = sorted(scores.items(), key=lambda kv: -kv[1])
-    (top, s1), (_, s2) = ranked[0], ranked[1]
-    return top if s1 > 0 and s1 > s2 else None
+    q = question.lower()
+    scores = {}
+    for label, words in KEYWORDS.items():
+        s = 0
+        for w in words:
+            if " " in w:
+                if w in q:
+                    s += 2
+            elif w in _WORD.findall(q):
+                s += 1
+        scores[label] = s
+    best, top = max(scores.items(), key=lambda kv: kv[1])
+    others = [v for k, v in scores.items() if k != best]
+    if top >= 1 and top > max(others):
+        return best
+    return None
 
 
 class Router:
@@ -31,13 +44,16 @@ class Router:
         self.provider = provider
 
     def classify(self, question: str) -> Tuple[Optional[str], str]:
-        """-> (label or None, method: "rules" | "llm" | "unclear")"""
-        label = rule_classify(question)
-        if label:
-            return label, "rules"
-        res = self.provider.generate(
-            f"Classify this driver question as exactly one of: marketplace, earnings, onboarding.\n"
-            f"Question: {question}\nReply with the single word only.",
-            system="You are a strict classifier.", fallback="unclear")
-        found = next((l for l in LABELS if l in res.text.lower()), None) if res.source != "template" else None
-        return (found, "llm") if found else (None, "unclear")
+        rule = rule_classify(question)
+        if rule:
+            return rule, "rule"
+
+        prompt = (f"Categorise this driver question into exactly ONE of: marketplace, earnings, onboarding.\n"
+                  f"Question: \"{question}\"\n"
+                  f"Reply with just the single lowercase word.")
+        res = self.provider.generate(prompt, fallback="")
+        cleaned = re.sub(r"[^a-z]", "", res.text.lower())
+        for label in LABELS:
+            if label in cleaned:
+                return label, "llm"
+        return None, "fallback"

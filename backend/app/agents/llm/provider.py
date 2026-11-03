@@ -1,9 +1,4 @@
-"""LLM provider chain: local Ollama -> Gemini (rotated key) -> rule-based template.
-
-generate() never raises: if both models fail it returns the caller's
-deterministic `fallback` text with source="template".
-Env: OLLAMA_URL, OLLAMA_MODEL, GEMINI_MODEL, GEMINI_API_KEYS / GEMINI_API_KEY.
-"""
+"""LLM provider chain: local Ollama -> Gemini (rotated key) -> rule-based template."""
 from __future__ import annotations
 
 import json
@@ -14,8 +9,12 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Optional
 
-from llm.cache import ResponseCache
-from llm.key_rotator import KeyRotator
+try:
+    from app.agents.llm.cache import ResponseCache
+    from app.agents.llm.key_rotator import KeyRotator
+except ImportError:
+    from .cache import ResponseCache
+    from .key_rotator import KeyRotator
 
 
 @dataclass
@@ -34,30 +33,29 @@ class GeminiHTTPError(Exception):
 class LLMProvider:
     def __init__(self, *, ollama_url: Optional[str] = None, ollama_model: Optional[str] = None,
                  gemini_model: Optional[str] = None, rotator: Optional[KeyRotator] = None,
-                 cache: Optional[ResponseCache] = None, timeout_s: float = 20.0,
-                 ollama_backoff_s: float = 30.0):
+                 cache: Optional[ResponseCache] = None, timeout_s: float = 15.0,
+                 ollama_backoff_s: float = 60.0):
         self.ollama_url = (ollama_url or os.environ.get("OLLAMA_URL", "http://localhost:11434")).rstrip("/")
         self.ollama_model = ollama_model or os.environ.get("OLLAMA_MODEL", "llama3.2")
-        self.gemini_model = gemini_model or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        self.gemini_model = gemini_model or os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
         self.rotator = rotator if rotator is not None else KeyRotator.from_env()
         self.cache = cache if cache is not None else ResponseCache()
         self.timeout_s, self.ollama_backoff_s = timeout_s, ollama_backoff_s
         self._ollama_down_until = 0.0
 
-    # ---- public ----
     def generate(self, prompt: str, *, system: str = "", fallback: str) -> GenResult:
         key = self.cache.make_key(f"{self.gemini_model}|{system}", prompt)
         hit = self.cache.get(key)
         if hit:
             return GenResult(hit[0], hit[1], cached=True)
-        for source, fn in (("ollama", self._try_ollama), ("gemini", self._try_gemini)):
+
+        for source, fn in (("gemini", self._try_gemini), ("ollama", self._try_ollama)):
             text = fn(prompt, system)
             if text:
                 self.cache.set(key, text, source)
                 return GenResult(text, source)
-        return GenResult(fallback, "template")  # template answers are never cached
+        return GenResult(fallback, "template")
 
-    # ---- tier 1: Ollama ----
     def _call_ollama(self, prompt: str, system: str) -> str:
         body = json.dumps({"model": self.ollama_model, "prompt": prompt, "system": system,
                            "stream": False, "options": {"temperature": 0}}).encode()
@@ -76,7 +74,6 @@ class LLMProvider:
             self._ollama_down_until = time.monotonic() + self.ollama_backoff_s
             return None
 
-    # ---- tier 2: Gemini with key rotation ----
     def _call_gemini(self, key: str, prompt: str, system: str) -> str:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent"
         payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -96,7 +93,7 @@ class LLMProvider:
         return "".join(p.get("text", "") for p in parts)
 
     def _try_gemini(self, prompt: str, system: str) -> Optional[str]:
-        for _ in range(min(len(self.rotator), 3)):
+        for _ in range(min(len(self.rotator), 4)):
             key = self.rotator.acquire()
             if key is None:
                 return None
@@ -110,7 +107,7 @@ class LLMProvider:
                 elif e.status >= 500:
                     self.rotator.report_error(key)
                 else:
-                    return None  # bad request: another key won't help
+                    return None
                 continue
             except Exception:
                 self.rotator.report_error(key)
