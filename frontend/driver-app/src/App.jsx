@@ -6,25 +6,29 @@ import 'shared/uber-design.css';
 
 export default function App() {
   const { world, conn, send } = useWorld();
+  const [isOnline, setIsOnline] = useState(true);
+  const [localEnroute, setLocalEnroute] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
-  const [isMessaging, setIsMessaging] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState(false);
 
   const { driver, recommendation: rec } = world || {};
-  const isEnroute = driver?.status === 'enroute';
-  const targetZoneId = driver?.target;
-  const targetZone = targetZoneId ? ZONE_DETAILS.find((z) => z.id === targetZoneId) : null;
+  const isEnroute = localEnroute || driver?.status === 'enroute';
+  const targetZoneId = driver?.target || rec?.destination || rec?.zone || 7;
+  const targetZone = ZONE_DETAILS.find((z) => z.id === targetZoneId) || { name: 'Stadium', icon: '🏟️' };
 
-  // Positioning hint details from existing API/WebSocket
+  // Positioning hint details
   const recZoneId = rec?.destination || rec?.zone || 7;
   const recZoneDetail = ZONE_DETAILS.find((z) => z.id === recZoneId) || { name: 'Stadium', icon: '🏟️' };
   const recDelta = rec?.demand_delta_pct || 180;
   const recSurge = rec?.surge || 2.2;
 
   const handleAcceptHint = () => {
+    setLocalEnroute(true);
     send({ type: 'accept_rec' });
   };
 
   const handleIgnoreHint = () => {
+    setHintDismissed(true);
     send({ type: 'ignore_rec' });
   };
 
@@ -35,10 +39,18 @@ export default function App() {
       {/* Top Header Branding */}
       <div className="flex items-center justify-between pt-1">
         <h1 className="text-xl font-black tracking-tighter text-black">Uber Driver</h1>
-        <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Online</span>
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsOnline(!isOnline)}
+          className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition cursor-pointer ${
+            isOnline
+              ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+              : 'bg-gray-100 text-gray-500 border-gray-200'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+          <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+        </button>
       </div>
 
       {/* ========================================================
@@ -82,25 +94,27 @@ export default function App() {
         {/* Call & Message Action Buttons */}
         <div className="grid grid-cols-2 gap-3 pt-1">
           <button
+            type="button"
             onClick={() => {
               setIsCalling(true);
               setTimeout(() => {
-                alert('Connected call to passenger.');
+                alert('Connected call to passenger Rahul Kumar.');
                 setIsCalling(false);
-              }, 600);
+              }, 500);
             }}
-            className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition border border-gray-200/70"
+            className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition border border-gray-200/70 cursor-pointer"
           >
             <span>📞</span>
             <span>{isCalling ? 'Calling...' : 'Call'}</span>
           </button>
 
           <button
+            type="button"
             onClick={() => {
-              const msg = prompt('Enter message for passenger:', 'I have arrived at the pickup spot.');
-              if (msg) alert(`Message sent: "${msg}"`);
+              const msg = prompt('Enter message for passenger:', 'I am arriving in 3 minutes.');
+              if (msg) alert(`Message delivered: "${msg}"`);
             }}
-            className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition border border-gray-200/70"
+            className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition border border-gray-200/70 cursor-pointer"
           >
             <span>💬</span>
             <span>Message</span>
@@ -119,50 +133,61 @@ export default function App() {
       {/* ========================================================
           POSITIONING HINT CARD (from existing API / WebSocket)
          ======================================================== */}
-      <div className="uber-card p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-[#4B2FD0]">
-            <span>⚡</span>
-            <span>AI Demand Positioning</span>
+      {!hintDismissed && (
+        <div className="uber-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#4B2FD0]">
+              <span>⚡</span>
+              <span>AI Demand Positioning</span>
+            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+              {recSurge.toFixed(1)}x Surge
+            </span>
           </div>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-            {recSurge.toFixed(1)}x Surge
-          </span>
+
+          {isEnroute ? (
+            <div className="text-xs text-gray-600 space-y-2">
+              <p className="font-semibold text-gray-900">
+                Navigating to <strong>Zone #{targetZoneId} ({targetZone?.name})</strong>
+              </p>
+              <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                <div className="bg-[#4B2FD0] h-full w-3/4 animate-pulse" />
+              </div>
+              <p className="text-[11px] text-gray-400">Positioning in high demand zone to capture incoming trips.</p>
+              <button
+                type="button"
+                onClick={() => setLocalEnroute(false)}
+                className="text-[11px] text-[#4B2FD0] font-bold hover:underline cursor-pointer pt-1"
+              >
+                Mark as Arrived
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3 text-xs">
+              <p className="font-semibold text-gray-800 leading-snug">
+                Move to <strong>Zone #{recZoneId} ({recZoneDetail.name})</strong>, high demand (+{recDelta}%).
+              </p>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleAcceptHint}
+                  className="uber-btn-black py-2.5 text-xs cursor-pointer"
+                >
+                  Accept & Navigate
+                </button>
+                <button
+                  type="button"
+                  onClick={handleIgnoreHint}
+                  className="py-2.5 px-3 rounded-xl border border-gray-200 text-gray-600 font-semibold text-xs hover:bg-gray-50 transition cursor-pointer"
+                >
+                  Stay Here
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-
-        {isEnroute ? (
-          <div className="text-xs text-gray-600 space-y-2">
-            <p className="font-semibold text-gray-900">
-              Navigating to <strong>Zone #{targetZoneId} ({targetZone?.name})</strong>
-            </p>
-            <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-              <div className="bg-[#4B2FD0] h-full w-2/3 animate-pulse" />
-            </div>
-            <p className="text-[11px] text-gray-400">Positioning in high demand zone to capture upcoming ride requests.</p>
-          </div>
-        ) : (
-          <div className="space-y-3 text-xs">
-            <p className="font-semibold text-gray-800 leading-snug">
-              Move to <strong>Zone #{recZoneId} ({recZoneDetail.name})</strong>, high demand (+{recDelta}%).
-            </p>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={handleAcceptHint}
-                className="uber-btn-black py-2.5 text-xs"
-              >
-                Accept & Navigate
-              </button>
-              <button
-                onClick={handleIgnoreHint}
-                className="py-2.5 px-3 rounded-xl border border-gray-200 text-gray-600 font-semibold text-xs hover:bg-gray-50 transition"
-              >
-                Stay Here
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

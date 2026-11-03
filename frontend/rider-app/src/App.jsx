@@ -45,7 +45,7 @@ export default function App() {
         if (prev <= 1) {
           setRideStep(2);
           clearInterval(interval);
-          setTimeout(() => setScreen('completed'), 2000);
+          setTimeout(() => setScreen('completed'), 1500);
           return 0;
         }
         return prev - 1;
@@ -73,7 +73,7 @@ export default function App() {
   };
 
   const handleBookNow = () => {
-    // Send booking to backend/sim
+    // Send booking to backend or local sim
     send({ type: 'book', zone: pickupZoneId });
     setScreen('live');
     setRemainingMin(3);
@@ -123,21 +123,23 @@ export default function App() {
               <span className="text-gray-400 text-[10px]">▼</span>
             </div>
             <button 
+              type="button"
               onClick={() => switchTab('profile')}
-              className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-700"
+              className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-700 cursor-pointer"
             >
               👤
             </button>
           </div>
 
-          {/* Search Box: "Where to?" */}
-          <div 
+          {/* Search Box: "Where to?" button */}
+          <button 
+            type="button"
             onClick={() => setScreen('book')}
-            className="flex items-center gap-3 bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm cursor-pointer hover:border-gray-400 transition"
+            className="w-full flex items-center gap-3 bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm cursor-pointer hover:border-gray-400 transition text-left"
           >
             <span className="text-gray-400 text-sm">🔍</span>
             <span className="text-sm font-semibold text-gray-500">Where to?</span>
-          </div>
+          </button>
 
           {/* Map Area */}
           <div className="flex-1 min-h-[220px]">
@@ -148,7 +150,11 @@ export default function App() {
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-gray-900">Popular Rides</h2>
-              <button onClick={() => setScreen('book')} className="text-xs font-semibold text-[#4B2FD0] hover:underline flex items-center gap-0.5">
+              <button 
+                type="button"
+                onClick={() => setScreen('book')} 
+                className="text-xs font-semibold text-[#4B2FD0] hover:underline flex items-center gap-0.5 cursor-pointer"
+              >
                 See all →
               </button>
             </div>
@@ -161,8 +167,9 @@ export default function App() {
                 return (
                   <button
                     key={r.name}
+                    type="button"
                     onClick={() => handleSelectRide(r.name)}
-                    className={`p-3 rounded-2xl bg-white border text-center transition flex flex-col items-center justify-between ${
+                    className={`p-3 rounded-2xl bg-white border text-center transition flex flex-col items-center justify-between cursor-pointer ${
                       isSelected 
                         ? 'border-[#4B2FD0] ring-2 ring-[#4B2FD0]/20 shadow-sm' 
                         : 'border-gray-200/70 hover:border-gray-300'
@@ -185,14 +192,15 @@ export default function App() {
       {screen === 'book' && (
         <div className="flex-1 flex flex-col relative">
           {/* Top Bar with back arrow */}
-          <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
+          <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
             <button
+              type="button"
               onClick={() => setScreen('home')}
-              className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-sm font-bold text-black pointer-events-auto border border-gray-100"
+              className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-sm font-bold text-black border border-gray-100 cursor-pointer hover:bg-gray-50"
             >
               ←
             </button>
-            <div className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-sm text-gray-700 pointer-events-auto border border-gray-100">
+            <div className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-sm text-gray-700 border border-gray-100">
               🎯
             </div>
           </div>
@@ -250,13 +258,14 @@ export default function App() {
                 <span className="text-base">💳</span>
                 <span className="font-bold text-gray-800">•••• 4242</span>
               </div>
-              <button className="text-[#4B2FD0] font-bold text-xs hover:underline">Change</button>
+              <button type="button" onClick={() => alert('Using default payment method')} className="text-[#4B2FD0] font-bold text-xs hover:underline cursor-pointer">Change</button>
             </div>
 
             {/* Big Black Button */}
             <button
+              type="button"
               onClick={handleBookNow}
-              className="uber-btn-black"
+              className="uber-btn-black cursor-pointer"
             >
               Book Ride
             </button>
@@ -272,8 +281,9 @@ export default function App() {
           {/* Top back button */}
           <div className="absolute top-4 left-4 z-20">
             <button
+              type="button"
               onClick={() => setScreen('home')}
-              className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-sm font-bold text-black border border-gray-100"
+              className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-sm font-bold text-black border border-gray-100 cursor-pointer hover:bg-gray-50"
             >
               ←
             </button>
@@ -311,8 +321,9 @@ export default function App() {
 
               {/* Call Button */}
               <button 
+                type="button"
                 onClick={() => alert('Calling driver Rahul Kumar at +91 98765 43210...')}
-                className="w-10 h-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-base hover:bg-gray-100 transition"
+                className="w-10 h-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-base hover:bg-gray-100 transition cursor-pointer"
               >
                 📞
               </button>
@@ -330,10 +341,11 @@ export default function App() {
               </div>
             </div>
 
-            {/* Cancel / Dev Fast Forward */}
+            {/* Fast forward button */}
             <button
+              type="button"
               onClick={() => setScreen('completed')}
-              className="text-xs text-gray-400 font-semibold text-center hover:text-black transition"
+              className="text-xs text-gray-400 font-semibold text-center hover:text-black transition cursor-pointer py-1"
             >
               Simulate Instant Arrival →
             </button>
@@ -366,8 +378,9 @@ export default function App() {
           {/* Black Done Button */}
           <div className="w-full max-w-xs pt-4">
             <button
+              type="button"
               onClick={handleCompleteDone}
-              className="uber-btn-black"
+              className="uber-btn-black cursor-pointer"
             >
               Done
             </button>
@@ -427,16 +440,17 @@ export default function App() {
           <div className="uber-card divide-y divide-gray-100 text-xs font-semibold text-gray-700">
             {[
               { label: 'My Rides', icon: '🚗', action: () => switchTab('history') },
-              { label: 'Payment Methods', icon: '💳' },
-              { label: 'Notifications', icon: '🔔' },
-              { label: 'Help & Support', icon: '❓' },
-              { label: 'Settings', icon: '⚙️' },
-              { label: 'Log Out', icon: '🚪' },
+              { label: 'Payment Methods', icon: '💳', action: () => alert('Saved card: •••• 4242') },
+              { label: 'Notifications', icon: '🔔', action: () => alert('No new notifications') },
+              { label: 'Help & Support', icon: '❓', action: () => alert('Support line: support@uber.com') },
+              { label: 'Settings', icon: '⚙️', action: () => alert('Settings: Version 1.0.0') },
+              { label: 'Log Out', icon: '🚪', action: () => { alert('Logged out'); switchTab('home'); } },
             ].map((m, idx) => (
               <button
                 key={idx}
+                type="button"
                 onClick={m.action}
-                className="w-full flex items-center justify-between p-3.5 hover:bg-gray-50 transition text-left"
+                className="w-full flex items-center justify-between p-3.5 hover:bg-gray-50 transition text-left cursor-pointer"
               >
                 <span className="flex items-center gap-3">
                   <span>{m.icon}</span>
@@ -455,22 +469,25 @@ export default function App() {
       {(screen === 'home' || screen === 'history' || screen === 'profile') && (
         <nav className="uber-bottom-nav">
           <button
+            type="button"
             onClick={() => switchTab('home')}
-            className={`uber-nav-item ${activeTab === 'home' ? 'active' : ''}`}
+            className={`uber-nav-item cursor-pointer ${activeTab === 'home' ? 'active' : ''}`}
           >
             <span className="text-base">🏠</span>
             <span>Home</span>
           </button>
           <button
+            type="button"
             onClick={() => switchTab('history')}
-            className={`uber-nav-item ${activeTab === 'history' ? 'active' : ''}`}
+            className={`uber-nav-item cursor-pointer ${activeTab === 'history' ? 'active' : ''}`}
           >
             <span className="text-base">⏱️</span>
             <span>Ride History</span>
           </button>
           <button
+            type="button"
             onClick={() => switchTab('profile')}
-            className={`uber-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
+            className={`uber-nav-item cursor-pointer ${activeTab === 'profile' ? 'active' : ''}`}
           >
             <span className="text-base">👤</span>
             <span>Profile</span>
