@@ -1,27 +1,11 @@
-"""
-forecasting/supply_model.py — Driver supply forecasting.
-"""
+"""Predicted supply per zone.  ALL DATA IS SYNTHETIC."""
 
-from typing import Dict
-
-
-class SupplyModel:
-    def __init__(self) -> None:
-        pass
-
-    def predict_idle_drivers(
-        self,
-        zone_id: int,
-        current_idle: int,
-        current_en_route: int,
-        horizon_ticks: int = 30,
-    ) -> float:
-        return float(current_idle + current_en_route * 0.5)
-
-    def supply_gap(
-        self,
-        zone_id: int,
-        predicted_demand: float,
-        predicted_supply: float,
-    ) -> float:
-        return predicted_supply - predicted_demand
+def predict_supply(snapshot):
+    zones = set(snapshot.get("idle", {})) | set(snapshot.get("incoming", {})) | set(snapshot.get("trips", {}))
+    supply = {}
+    for z in zones:
+        idle = float(snapshot.get("idle", {}).get(z, 0))
+        incoming = float(snapshot.get("incoming", {}).get(z, 0))
+        finishing = float(snapshot.get("trips", {}).get(z, 0))
+        supply[z] = idle + incoming - finishing
+    return supply

@@ -1,68 +1,68 @@
-"""
-forecasting/model_health.py — LLM staleness checks and fallback switching.
-"""
+"""Model health checks + automatic fallback to the frozen baseline.  ALL DATA IS SYNTHETIC."""
+import numpy as np
 
-import time
-import logging
-from enum import Enum
-from typing import Optional
+from .baseline import predict as baseline_predict
+from .common import MAX_LAG, all_zones
 
-logger = logging.getLogger(__name__)
-
-STALE_TICK_THRESHOLD = 3
-STALE_SECONDS_THRESHOLD = 30.0
+DEFAULT_STALENESS_MINUTES = 10
+CV_SPIKE_THRESHOLD = 3.0
 
 
-class LLMProvider(str, Enum):
-    LOCAL  = "local"
-    GEMINI = "gemini"
+class HealthMonitor:
+    def __init__(self, model, max_staleness_minutes=DEFAULT_STALENESS_MINUTES,
+                 cv_threshold=CV_SPIKE_THRESHOLD):
+        self.model = model
+        self.max_staleness = max_staleness_minutes
+        self.cv_threshold = cv_threshold
+        self.last_healthy = True
+        self.last_reason = "OK"
 
+    def _check(self, snapshot_history):
+        if not snapshot_history:
+            return False, "EMPTY_HISTORY"
 
-class ModelHealthMonitor:
-    def __init__(self) -> None:
-        self.active_provider = LLMProvider.LOCAL
-        self.last_local_success_tick: Optional[int] = None
-        self.last_local_success_time: Optional[float] = None
-        self.consecutive_local_failures = 0
-        self.fallback_count = 0
+        if len(snapshot_history) < MAX_LAG:
+            return False, f"WARMUP: need {MAX_LAG} ticks, have {len(snapshot_history)}"
 
-    def record_success(self, provider: LLMProvider, tick: int) -> None:
-        if provider == LLMProvider.LOCAL:
-            self.last_local_success_tick = tick
-            self.last_local_success_time = time.time()
-            self.consecutive_local_failures = 0
-            if self.active_provider == LLMProvider.GEMINI:
-                logger.info("Local model recovered — switching back from Gemini.")
-                self.active_provider = LLMProvider.LOCAL
+        current = snapshot_history[-1]
+        age = current.get("age_minutes", 0)
+        if age > self.max_staleness:
+            return False, f"STALE_INPUTS: snapshot age {age}m > {self.max_staleness}m"
 
-    def record_failure(self, provider: LLMProvider, tick: int) -> None:
-        if provider == LLMProvider.LOCAL:
-            self.consecutive_local_failures += 1
-            logger.warning(
-                f"Local model failure #{self.consecutive_local_failures} at tick {tick}"
-            )
-            if self.consecutive_local_failures >= STALE_TICK_THRESHOLD:
-                self._activate_fallback()
+        expected_zones = set(all_zones(snapshot_history[-MAX_LAG]))
+        current_zones = set(all_zones(current))
+        missing = expected_zones - current_zones
+        if missing:
+            return False, f"MISSING_ZONES: {sorted(missing)}"
 
-    def check_staleness(self, current_tick: int) -> bool:
-        if self.last_local_success_time is None:
-            return True
-        age = time.time() - self.last_local_success_time
-        return age > STALE_SECONDS_THRESHOLD
+        try:
+            preds = self.model.predict(snapshot_history)
+        except Exception as err:
+            return False, f"PREDICT_EXCEPTION: {err}"
 
-    def _activate_fallback(self) -> None:
-        if self.active_provider != LLMProvider.GEMINI:
-            logger.warning("Switching to Gemini fallback — local model is stale.")
-            self.active_provider = LLMProvider.GEMINI
-            self.fallback_count += 1
+        vals = np.array(list(preds.values()), dtype=float)
+        if not len(vals):
+            return False, "EMPTY_PREDICTIONS"
 
-    def status_dict(self) -> dict:
-        return {
-            "active_provider": self.active_provider.value,
-            "consecutive_local_failures": self.consecutive_local_failures,
-            "fallback_count": self.fallback_count,
-            "last_local_success_tick": self.last_local_success_tick,
-            "status": (
-                "healthy" if self.active_provider == LLMProvider.LOCAL else "fallback"
-            ),
-        }
+        if np.any(np.isnan(vals)) or np.any(np.isinf(vals)):
+            return False, "NAN_OR_INF_IN_OUTPUT"
+
+        if np.all(vals == 0.0):
+            return False, "ALL_ZERO_PREDICTIONS"
+
+        mean = np.mean(vals)
+        if mean > 0:
+            cv = np.std(vals) / mean
+            if cv > self.cv_threshold:
+                return False, f"HIGH_VARIANCE_SPIKE: CV {cv:.2f} > {self.cv_threshold}"
+
+        return True, "OK"
+
+    def get_forecast(self, snapshot_history):
+        healthy, reason = self._check(snapshot_history)
+        self.last_healthy = healthy
+        self.last_reason = reason
+
+        if healthy:
+            return self.model.predict(snapshot_history), "model", "OK"
+        return baseline_predict(snapshot_history), "baseline", f"FALLBACK: {reason}"

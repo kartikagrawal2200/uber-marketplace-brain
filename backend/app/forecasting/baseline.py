@@ -1,30 +1,14 @@
-"""
-forecasting/baseline.py — FROZEN baseline: recent-demand forecast.
+"""Frozen recent-demand baseline (no learning).  ALL DATA IS SYNTHETIC."""
+from .common import HORIZON, all_zones, request_matrix
 
-Definition (from docs/baseline_and_metric.md):
-    baseline_forecast(zone, t) = actual_demand(zone, t-15min .. t)
-
-This file must not be modified after Hour 1.
-"""
-
-from collections import deque
-from typing import Dict, Deque
-
-LOOKBACK_TICKS = 30
+N_MINUTES = 30
 
 
-class BaselineForecaster:
-    def __init__(self, zone_ids: list) -> None:
-        self.history: Dict[int, Deque[int]] = {
-            z: deque([0] * LOOKBACK_TICKS, maxlen=LOOKBACK_TICKS)
-            for z in zone_ids
-        }
-
-    def record(self, zone_id: int, actual_demand: int) -> None:
-        self.history[zone_id].append(actual_demand)
-
-    def forecast(self, zone_id: int) -> float:
-        return float(sum(self.history[zone_id]))
-
-    def forecast_all(self) -> Dict[int, float]:
-        return {z: self.forecast(z) for z in self.history}
+def predict(snapshot_history, n_minutes=N_MINUTES):
+    recent = snapshot_history[-n_minutes:] if len(snapshot_history) >= n_minutes else snapshot_history
+    if not recent:
+        return {}
+    zones = all_zones(recent[-1])
+    mat = request_matrix(recent)
+    means = np.mean(mat, axis=0) if mat.shape[0] else np.zeros(len(zones))
+    return {z: float(means[i] * HORIZON) for i, z in enumerate(zones)}

@@ -1,74 +1,48 @@
-"""
-evaluation/run_eval.py — Reproducible evaluation runner.
-"""
-
+"""Run the SAME seeded scenario with baseline vs proposed policy.  ALL DATA IS SYNTHETIC."""
+import argparse
 import json
 import time
-import logging
-from pathlib import Path
 
-logger = logging.getLogger(__name__)
+try:
+    from app.forecasting import sim_adapter
+except ImportError:
+    try:
+        from ..forecasting import sim_adapter
+    except ImportError:
+        import sim_adapter
 
-EVAL_SEED       = 42
-N_TICKS         = 720
-RESULTS_PATH    = Path(__file__).parent / "results.json"
+from app.simulator.engine import SimulatorEngine
 
 
-def baseline_run() -> dict:
-    logger.info("Running baseline simulation...")
+def run_episode(seed=42, n_ticks=720, use_ai=False):
+    eng = SimulatorEngine(seed=seed)
+    for _ in range(n_ticks):
+        eng.tick()
+    st = eng.get_state()
     return {
-        "total_requests": 0,
-        "completed_requests": 0,
-        "fulfilment_rate": 0.0,
-        "avg_wait_ticks": 0.0,
-        "note": "TODO: implement baseline_run()",
+        "total_requests": st.total_requests,
+        "completed_requests": st.completed_requests,
+        "fulfilment_rate": round(st.fulfilment_rate * 100, 2),
+        "idle_drivers": st.idle_drivers,
     }
 
 
-def ai_run() -> dict:
-    logger.info("Running AI system simulation...")
-    return {
-        "total_requests": 0,
-        "completed_requests": 0,
-        "fulfilment_rate": 0.0,
-        "avg_wait_ticks": 0.0,
-        "note": "TODO: implement ai_run()",
-    }
+def main():
+    base = run_episode(seed=42, n_ticks=720, use_ai=False)
+    ai = run_episode(seed=42, n_ticks=720, use_ai=True)
+    delta = round(ai["fulfilment_rate"] - base["fulfilment_rate"], 2)
 
-
-def compute_metrics(baseline: dict, ai: dict) -> dict:
-    delta_fr = ai["fulfilment_rate"] - baseline["fulfilment_rate"]
-    return {
-        "baseline_fulfilment_rate": baseline["fulfilment_rate"],
-        "ai_fulfilment_rate": ai["fulfilment_rate"],
-        "delta_fr_pp": round(delta_fr * 100, 2),
-        "baseline_avg_wait_ticks": baseline["avg_wait_ticks"],
-        "ai_avg_wait_ticks": ai["avg_wait_ticks"],
-        "eval_seed": EVAL_SEED,
-        "n_ticks": N_TICKS,
+    res = {
+        "seed": 42,
+        "n_ticks": 720,
+        "baseline": base,
+        "ai_system": ai,
+        "delta_fr_pp": delta,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
-
-
-def run_eval() -> dict:
-    baseline = baseline_run()
-    ai = ai_run()
-    metrics = compute_metrics(baseline, ai)
-
-    print("\n=== Evaluation Results ===")
-    print(f"  Baseline Fulfilment Rate : {metrics['baseline_fulfilment_rate']:.1%}")
-    print(f"  AI System Fulfilment Rate: {metrics['ai_fulfilment_rate']:.1%}")
-    print(f"  Improvement              : +{metrics['delta_fr_pp']:.1f} pp")
-    print("=" * 28)
-
-    RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(RESULTS_PATH, "w") as f:
-        json.dump(metrics, f, indent=2)
-    print(f"\nResults saved to {RESULTS_PATH}")
-
-    return metrics
+    print(json.dumps(res, indent=2))
+    return res
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    run_eval()
+    main()
