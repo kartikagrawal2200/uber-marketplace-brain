@@ -40,6 +40,10 @@ cd ../driver-app && npm install
 cd ../admin-dashboard && npm install
 
 # 4. Launch everything
+# On Windows (One-Click):
+start_all.bat
+
+# On Linux / macOS:
 bash scripts/start_all.sh
 ```
 
