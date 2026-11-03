@@ -1,50 +1,40 @@
-"""
-agents/llm/cache.py — Simple in-memory LLM response cache.
-"""
+"""Thread-safe in-memory TTL + LRU response cache for LLM answers."""
+from __future__ import annotations
 
-from typing import Dict, Optional
 import hashlib
-import logging
+import threading
+import time
+from collections import OrderedDict
+from typing import Callable, Optional, Tuple
 
-logger = logging.getLogger(__name__)
 
-MAX_CACHE_SIZE = 256
+class ResponseCache:
+    def __init__(self, max_entries: int = 512, ttl_s: float = 300.0,
+                 clock: Callable[[], float] = time.monotonic):
+        self.max_entries, self.ttl_s, self._clock = max_entries, ttl_s, clock
+        self._d: "OrderedDict[str, Tuple[float, str, str]]" = OrderedDict()
+        self._lock = threading.Lock()
 
+    @staticmethod
+    def make_key(system: str, prompt: str) -> str:
+        return hashlib.sha256(f"{system}\x00{prompt}".encode()).hexdigest()
 
-class LLMCache:
-    def __init__(self) -> None:
-        self._store: Dict[str, str] = {}
-        self._hit_count = 0
-        self._miss_count = 0
+    def get(self, key: str) -> Optional[Tuple[str, str]]:
+        """-> (text, source) or None."""
+        with self._lock:
+            item = self._d.get(key)
+            if item is None:
+                return None
+            exp, text, source = item
+            if exp <= self._clock():
+                del self._d[key]
+                return None
+            self._d.move_to_end(key)
+            return text, source
 
-    def _key(self, prompt: str) -> str:
-        return hashlib.sha256(prompt.encode()).hexdigest()
-
-    def get(self, prompt: str) -> Optional[str]:
-        k = self._key(prompt)
-        result = self._store.get(k)
-        if result:
-            self._hit_count += 1
-            logger.debug(f"Cache HIT (hits={self._hit_count})")
-        else:
-            self._miss_count += 1
-        return result
-
-    def set(self, prompt: str, response: str) -> None:
-        if len(self._store) >= MAX_CACHE_SIZE:
-            oldest = next(iter(self._store))
-            del self._store[oldest]
-        self._store[self._key(prompt)] = response
-
-    def clear(self) -> None:
-        self._store.clear()
-
-    def stats(self) -> dict:
-        return {
-            "size": len(self._store),
-            "hits": self._hit_count,
-            "misses": self._miss_count,
-            "hit_rate": (
-                self._hit_count / max(self._hit_count + self._miss_count, 1)
-            ),
-        }
+    def set(self, key: str, text: str, source: str) -> None:
+        with self._lock:
+            self._d[key] = (self._clock() + self.ttl_s, text, source)
+            self._d.move_to_end(key)
+            while len(self._d) > self.max_entries:
+                self._d.popitem(last=False)
