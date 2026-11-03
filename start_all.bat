@@ -31,8 +31,8 @@ if %errorlevel% equ 0 (
 REM --- 3. Detect Python and Start Backend ---
 echo [2/5] Starting Backend API port 8000...
 set "PY_CMD="
-where python >nul 2>nul && set "PY_CMD=python"
-if "%PY_CMD%"=="" where py >nul 2>nul && set "PY_CMD=py -3"
+python --version >nul 2>nul && set "PY_CMD=python"
+if "%PY_CMD%"=="" py -3 --version >nul 2>nul && set "PY_CMD=py -3"
 if "%PY_CMD%"=="" if exist "C:\msys64\ucrt64\bin\python.exe" set "PY_CMD=C:\msys64\ucrt64\bin\python.exe"
 
 if "%PY_CMD%"=="" (
