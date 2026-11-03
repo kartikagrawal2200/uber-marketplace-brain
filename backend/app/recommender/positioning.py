@@ -1,40 +1,39 @@
 """Driver positioning: given the driver's zone, score every zone and return
 {"destination": <zone or "stay">, "reason": str, "numbers": {...}}.
-
-score(zone) = w.gap * (demand - supply - crowding_penalty)
-              - w.travel_per_min * travel_minutes
-              - w.congestion * congestion          (congestion in 0..1)
-Staying = same formula with travel 0 for the current zone.
-Move only if the best zone has a positive adjusted gap AND beats staying by
-at least w.min_gain (avoids pointless relocations).
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Callable, Dict, Mapping, Optional
 
-from anti_crowding import AntiCrowding
+try:
+    from app.recommender.anti_crowding import AntiCrowding
+except ImportError:
+    try:
+        from .anti_crowding import AntiCrowding
+    except ImportError:
+        from anti_crowding import AntiCrowding
 
 STAY = "stay"
 
 
-@dataclass(frozen=True)
+@dataclass
 class ZoneState:
     zone_id: str
-    demand: float       # forecast rides/hour
-    supply: float       # forecast available drivers (same unit)
-    congestion: float = 0.0  # 0 (free) .. 1 (gridlock)
+    demand: float
+    supply: float
+    congestion: float = 0.0
 
 
-@dataclass(frozen=True)
+@dataclass
 class Weights:
     gap: float = 1.0
-    travel_per_min: float = 0.15
-    congestion: float = 3.0
-    min_gain: float = 1.0
+    travel_per_min: float = 0.8
+    congestion: float = 1.5
+    min_gain: float = 0.5
 
 
-TravelFn = Callable[[str, str], Optional[float]]  # minutes, or None if unreachable
+TravelFn = Callable[[str, str], Optional[float]]
 
 
 def _score(z: ZoneState, travel_min: float, penalty: float, w: Weights) -> dict:
@@ -91,6 +90,5 @@ def recommend(current_zone: str, zones: Mapping[str, ZoneState], travel_minutes:
 
 
 def accept(result: Dict, driver_id: str, crowding: AntiCrowding) -> None:
-    """Call when the driver accepts the recommendation, so others see the zone as busier."""
     if result["destination"] != STAY:
         crowding.record_acceptance(driver_id, result["destination"])

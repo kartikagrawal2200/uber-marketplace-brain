@@ -1,40 +1,43 @@
-"""traffic_weather.py -- per-zone congestion, Markov weather, travel times.
-*** SYNTHETIC DATA: all traffic/weather values are invented for simulation. ***  Deps: numpy."""
+"""traffic_weather.py -- per-zone congestion, Markov weather, travel times."""
 import numpy as np
-from city import N_ZONES, ZONE_TYPES, DIST, get_neighbors
+
+try:
+    from app.simulator.city import N_ZONES, SPEED_KMH
+except ImportError:
+    try:
+        from .city import N_ZONES, SPEED_KMH
+    except ImportError:
+        from city import N_ZONES, SPEED_KMH
 
 WEATHER_STATES = ("clear", "rain", "heavy_rain")
-_P = np.array([[0.9990, 0.0010, 0.0000],   # per-minute Markov transition matrix (rain is rare, short)
-               [0.0200, 0.9750, 0.0050],
-               [0.0000, 0.0300, 0.9700]])
-_DEMAND = {"clear": 1.00, "rain": 1.25, "heavy_rain": 1.50}      # demand multiplier
-_SLOW = {"clear": 1.00, "rain": 1.25, "heavy_rain": 1.60}        # travel-time multiplier
+
 
 class Weather:
-    def __init__(self, state="clear"):
-        self.state = state
+    def __init__(self):
+        self.state = "clear"
+
     def step(self, rng):
-        """One Markov transition (1 tick = 1 minute)."""
-        self.state = WEATHER_STATES[rng.choice(3, p=_P[WEATHER_STATES.index(self.state)])]
-    @property
-    def demand_factor(self): return _DEMAND[self.state]
-    @property
-    def slowdown(self): return _SLOW[self.state]
+        p = rng.uniform()
+        if self.state == "clear":
+            if p < 0.05:
+                self.state = "rain"
+        elif self.state == "rain":
+            if p < 0.20:
+                self.state = "clear"
+            elif p < 0.30:
+                self.state = "heavy_rain"
+        else:
+            if p < 0.40:
+                self.state = "rain"
+        return self.state
 
-# Static extra congestion: stadium/airport zones, plus a smaller bump for their neighbors.
-_EXTRA = np.zeros(N_ZONES)
-for _z, _t in enumerate(ZONE_TYPES):
-    if _t in ("stadium", "airport"):
-        _EXTRA[_z] += 0.2
-        for _n in get_neighbors(_z): _EXTRA[_n] += 0.1
-_OFFICE = np.array([t in ("office", "transit_hub") for t in ZONE_TYPES], float)
 
-def congestion(hour_float):
-    """Per-zone congestion multiplier (>=1.0); rush peaks ~8:30 and ~17:30."""
-    rush = sum(np.exp(-0.5 * (min(abs(hour_float - c), 24 - abs(hour_float - c)) / 1.5) ** 2) for c in (8.5, 17.5))
-    rush = min(1.0, rush)
-    return 1.0 + 0.6 * rush + _EXTRA + 0.15 * rush * _OFFICE
+def congestion(zone_id, demand, supply):
+    ratio = demand / (supply + 1e-3)
+    return float(np.clip(0.1 + 0.3 * (ratio - 1.0), 0.0, 1.0))
 
-def travel_time(a, b, cong, slowdown=1.0):
-    """Minutes (int >=1) from zone a to b: 4 + 5/hop, scaled by avg congestion and weather slowdown."""
-    return max(1, int(np.ceil((4 + 5 * DIST[a, b]) * 0.5 * (cong[a] + cong[b]) * slowdown)))
+
+def travel_time(orig, dest, dist_matrix, cong=0.2):
+    dist = dist_matrix[orig, dest]
+    eff_speed = SPEED_KMH * (1.0 - 0.5 * cong)
+    return max(1, int(round((dist / eff_speed) * 60)))
