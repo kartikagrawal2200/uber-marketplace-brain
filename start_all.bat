@@ -43,7 +43,7 @@ echo   Rider  http://localhost:5173
 echo   Driver http://localhost:5174
 echo   Admin  http://localhost:5175
 echo   API    http://localhost:8000/docs
-timeout /t 6 /nobreak >nul
+ping 127.0.0.1 -n 6 >nul
 start http://localhost:5173
 start http://localhost:5175
 popd
