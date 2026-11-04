@@ -9,7 +9,14 @@ echo ======================================================================
 if not exist "%APP_DIR%\.env" copy "%APP_DIR%\.env.example" "%APP_DIR%\.env" >nul
 
 set "PY_CMD="
-python --version >nul 2>nul && set "PY_CMD=python"
+if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" set "PY_CMD=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
+if "%PY_CMD%"=="" if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY_CMD=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+if "%PY_CMD%"=="" if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" set "PY_CMD=%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+if "%PY_CMD%"=="" if exist "%LOCALAPPDATA%\Programs\Python\Python310\python.exe" set "PY_CMD=%LOCALAPPDATA%\Programs\Python\Python310\python.exe"
+if "%PY_CMD%"=="" for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do if exist "%%D\python.exe" set "PY_CMD=%%D\python.exe"
+if "%PY_CMD%"=="" for /d %%D in ("C:\Program Files\Python3*") do if exist "%%D\python.exe" set "PY_CMD=%%D\python.exe"
+if "%PY_CMD%"=="" for /d %%D in ("C:\Python3*") do if exist "%%D\python.exe" set "PY_CMD=%%D\python.exe"
+if "%PY_CMD%"=="" python --version >nul 2>nul && set "PY_CMD=python"
 if "%PY_CMD%"=="" py -3 --version >nul 2>nul && set "PY_CMD=py -3"
 if "%PY_CMD%"=="" (
   echo [ERROR] Python 3.10+ was not found. Install it from python.org and tick "Add to PATH".
