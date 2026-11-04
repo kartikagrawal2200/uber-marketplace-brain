@@ -1,79 +1,98 @@
-"""LightGBM next-15-min demand model per zone.  ALL DATA IS SYNTHETIC."""
-import argparse
+"""LightGBM demand model: requests per zone over the NEXT 15 minutes.  ALL DATA IS SYNTHETIC.
+
+Features: zone, lagged request counts (5/15/30/60 min), hour, weekend flag, weather, scheduled-event features (active factor, announced peak, minutes until start).
+Trained on its own seeded simulator run (never the evaluation seed).
+"""
 import os
-import pickle
+
 import numpy as np
-import pandas as pd
 
-from .common import (DATA_LABEL, HORIZON, LAGS, MAX_LAG, all_zones,
-                     event_count, make_features, request_matrix, weather_score)
+from .common import FEATURE_NAMES, HORIZON, history_arrays, features_at
 
-FEATURE_NAMES = [f"mean_{lag}m" for lag in LAGS] + ["weather", "events", "hour"]
-MODEL_DIR = os.path.dirname(__file__)
-MODEL_PATH = os.path.join(MODEL_DIR, "lgb_demand.pkl")
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "lgb_demand.txt")
+TRAIN_SEED = 1234
+MODEL_VERSION = "lgbm-demand-v1"
 
 
 class DemandModel:
+    version = MODEL_VERSION
+
     def __init__(self):
-        self.models = {}
+        self.booster = None
 
-    def fit(self, snapshot_history):
-        zones = all_zones(snapshot_history[-1])
-        mat = request_matrix(snapshot_history)
-        n_ticks, n_zones = mat.shape
-        usable = n_ticks - MAX_LAG - HORIZON
-        if usable < 10:
-            raise ValueError(f"Need at least {MAX_LAG + HORIZON + 10} ticks of history, got {n_ticks}")
-
-        X_by_zone = {z: [] for z in range(n_zones)}
-        y_by_zone = {z: [] for z in range(n_zones)}
-
-        for t in range(MAX_LAG, n_ticks - HORIZON):
-            sub = snapshot_history[:t]
-            for zi in range(n_zones):
-                feats = make_features(sub, zi)
-                target = float(np.sum(mat[t:t + HORIZON, zi]))
-                X_by_zone[zi].append(feats)
-                y_by_zone[zi].append(target)
-
-        for zi in range(n_zones):
-            X = np.array(X_by_zone[zi], dtype=float)
-            y = np.array(y_by_zone[zi], dtype=float)
-            try:
-                import lightgbm as lgb
-                ds = lgb.Dataset(X, label=y, feature_name=FEATURE_NAMES, free_raw_data=False)
-                params = {"objective": "regression", "metric": "rmse", "learning_rate": 0.08,
-                          "num_leaves": 15, "min_child_samples": 5, "verbosity": -1, "seed": 42}
-                self.models[zones[zi]] = lgb.train(params, ds, num_boost_round=60)
-            except Exception:
-                self.models[zones[zi]] = np.mean(y) if len(y) else 10.0
+    # -- training ------------------------------------------------------------
+    def fit(self, history, stride=3):
+        import lightgbm as lgb
+        zones, R, hours, days, wx, evt = history_arrays(history)
+        T = R.shape[0]
+        cs = np.vstack([np.zeros((1, R.shape[1])), np.cumsum(R, axis=0)])
+        X, y = [], []
+        for i in range(60, T - HORIZON, stride):
+            X.append(features_at(R, hours, days, wx, evt, i))
+            y.append(cs[i + 1 + HORIZON] - cs[i + 1])          # requests in minutes i+1 .. i+15
+        X, y = np.vstack(X), np.concatenate(y)
+        ds = lgb.Dataset(X, label=y, feature_name=FEATURE_NAMES, categorical_feature=["zone"])
+        params = {"objective": "poisson", "learning_rate": 0.05, "num_leaves": 15, "min_data_in_leaf": 30,
+                  "feature_fraction": 0.9, "seed": 42, "deterministic": True, "num_threads": 1, "verbosity": -1}
+        self.booster = lgb.train(params, ds, num_boost_round=250)
         return self
 
-    def predict(self, snapshot_history):
-        if not snapshot_history:
-            return {}
-        zones = all_zones(snapshot_history[-1])
-        preds = {}
-        for zi, zid in enumerate(zones):
-            model = self.models.get(zid)
-            if model is None:
-                preds[zid] = 0.0
-                continue
-            feats = make_features(snapshot_history, zi).reshape(1, -1)
-            try:
-                p = float(model.predict(feats)[0])
-            except Exception:
-                p = float(model) if isinstance(model, (int, float)) else 0.0
-            preds[zid] = max(0.0, p)
-        return preds
+    # -- inference -----------------------------------------------------------
+    def predict(self, history):
+        if self.booster is None:
+            raise RuntimeError("demand model is not trained")
+        zones, R, hours, days, wx, evt = history_arrays(history)
+        X = features_at(R, hours, days, wx, evt, R.shape[0] - 1)
+        p = np.clip(self.booster.predict(X), 0.0, None)
+        return {z: float(p[i]) for i, z in enumerate(zones)}
 
     def save(self, path=MODEL_PATH):
-        with open(path, "wb") as f:
-            pickle.dump(self.models, f)
+        self.booster.save_model(path)
 
     @classmethod
     def load(cls, path=MODEL_PATH):
-        inst = cls()
-        with open(path, "rb") as f:
-            inst.models = pickle.load(f)
-        return inst
+        import lightgbm as lgb
+        m = cls()
+        m.booster = lgb.Booster(model_file=path)
+        return m
+
+
+def generate_training_history(seed=TRAIN_SEED, days=3):
+    """Run the simulator with a mix of scheduled stress events and return the full snapshot history."""
+    from app.simulator.engine import Engine
+    eng = Engine(seed=seed, history_limit=None)
+    rng = np.random.default_rng(seed)
+    total = days * 1440
+    plan = {}
+    for _ in range(days * 3):
+        plan.setdefault(int(rng.integers(30, total - 60)), []).append(rng.choice(["stadium", "surge", "rain"]))
+    for _ in range(total):
+        for kind in plan.get(eng.t, []):
+            if kind == "stadium":
+                eng.trigger_stadium_end(delay=int(rng.choice([0, 10, 15])))
+            elif kind == "surge":
+                eng.trigger_surge(int(rng.integers(0, 12)))
+            else:
+                eng.trigger_rain(heavy=bool(rng.integers(0, 2)))
+        eng.tick()
+    return eng.history
+
+
+def train_and_save(path=MODEL_PATH):
+    model = DemandModel().fit(generate_training_history())
+    model.save(path)
+    return model
+
+
+def load_or_train(path=MODEL_PATH):
+    if os.path.exists(path):
+        try:
+            return DemandModel.load(path)
+        except Exception:
+            pass
+    return train_and_save(path)
+
+
+if __name__ == "__main__":
+    train_and_save()
+    print("trained on SYNTHETIC data ->", MODEL_PATH)

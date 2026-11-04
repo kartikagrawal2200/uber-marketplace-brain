@@ -1,53 +1,32 @@
-"""
-api/admin.py — REST endpoints for the Admin Dashboard.
-"""
+"""api/admin.py -- REST endpoints for the Admin dashboard.  ALL DATA IS SYNTHETIC."""
+import json
+import os
 
 from fastapi import APIRouter
-from typing import Optional
+
+from app.evaluation.run_eval import RESULTS_PATH
 
 router = APIRouter()
-
-AVAILABLE_SCENARIOS = ["stadium_surge", "rain_burst", "stale_model"]
+world = None           # set by main.py
+SCENARIOS = ["stadium", "surge", "rain", "stale", "reset"]
 
 
 @router.get("/state")
 async def get_full_state() -> dict:
-    return {"note": "TODO: return engine.get_state()"}
+    return world.snapshot()
 
 
-@router.post("/scenario/{scenario_name}")
-async def trigger_scenario(scenario_name: str) -> dict:
-    if scenario_name not in AVAILABLE_SCENARIOS:
-        return {"error": f"Unknown scenario. Available: {AVAILABLE_SCENARIOS}"}
-    return {
-        "scenario": scenario_name,
-        "status": "triggered",
-        "note": "TODO: implement scenario trigger logic",
-    }
+@router.post("/scenario/{name}")
+async def trigger_scenario(name: str) -> dict:
+    if name not in SCENARIOS:
+        return {"error": f"Unknown scenario. Available: {SCENARIOS}"}
+    return {"scenario": name, "ok": world.set_scenario(name), "active": world.scenarios()}
 
 
 @router.get("/metrics")
 async def get_metrics() -> dict:
-    return {
-        "fulfilment_rate": 0.0,
-        "baseline_fulfilment_rate": 0.0,
-        "delta_fr_pp": 0.0,
-        "total_requests": 0,
-        "completed_requests": 0,
-        "note": "TODO: connect to engine metrics",
-    }
-
-
-@router.get("/llm_health")
-async def get_llm_health() -> dict:
-    return {
-        "active_provider": "TODO",
-        "status": "TODO",
-        "fallback_count": 0,
-        "note": "TODO: connect to ModelHealthMonitor",
-    }
-
-
-@router.post("/reset")
-async def reset_simulation() -> dict:
-    return {"status": "reset", "note": "TODO: implement engine reset"}
+    """Last saved evaluation (baseline vs proposed) from evaluation/results.json."""
+    if not os.path.exists(RESULTS_PATH):
+        return {"data": "SYNTHETIC", "error": "No evaluation yet. Run: python -m app.evaluation.run_eval"}
+    with open(RESULTS_PATH, encoding="utf-8") as f:
+        return json.load(f)

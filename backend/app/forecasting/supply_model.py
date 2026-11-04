@@ -1,11 +1,14 @@
-"""Predicted supply per zone.  ALL DATA IS SYNTHETIC."""
+"""Supply forecast per zone.  ALL DATA IS SYNTHETIC.
+
+    supply = idle + incoming - finishing
+
+idle      drivers free in the zone right now (fresh GPS only)
+incoming  drivers that will be free in the zone within 15 min (repositioning there, or trips ending there)
+finishing queued requests in the zone that will absorb the first free drivers (trips about to start)
+"""
+
 
 def predict_supply(snapshot):
-    zones = set(snapshot.get("idle", {})) | set(snapshot.get("incoming", {})) | set(snapshot.get("trips", {}))
-    supply = {}
-    for z in zones:
-        idle = float(snapshot.get("idle", {}).get(z, 0))
-        incoming = float(snapshot.get("incoming", {}).get(z, 0))
-        finishing = float(snapshot.get("trips", {}).get(z, 0))
-        supply[z] = idle + incoming - finishing
-    return supply
+    zones = sorted(snapshot.get("idle", {}))
+    return {z: float(snapshot["idle"].get(z, 0)) + float(snapshot.get("incoming", {}).get(z, 0))
+               - float(snapshot.get("finishing", {}).get(z, 0)) for z in zones}

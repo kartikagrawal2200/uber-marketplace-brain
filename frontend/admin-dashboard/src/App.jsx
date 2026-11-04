@@ -24,8 +24,8 @@ export default function App() {
   // Combine live scenarios from engine with optimistic state
   const effectiveScenarios = { ...scenarios, ...activeScenarios };
 
-  const frBaseline = ev.baseline?.fulfilment ?? ev.fr_baseline ?? 71.2;
-  const frAI = ev.model?.fulfilment ?? ev.fr_proposed ?? 79.4;
+  const frBaseline = ev.baseline?.fulfilment ?? ev.fr_baseline ?? 0;
+  const frAI = ev.model?.fulfilment ?? ev.fr_proposed ?? 0;
   const deltaPP = ev.improvement_pp ?? ev.delta_pp ?? (frAI - frBaseline);
 
   const handleToggleScenario = (name) => {
@@ -289,7 +289,7 @@ export default function App() {
                 <div>
                   <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                     <h3 className="text-sm font-extrabold text-gray-900">Baseline vs AI</h3>
-                    <span className="uber-pill-green">+{Number(deltaPP).toFixed(1)} pp</span>
+                    <span className="uber-pill-green">{Number(deltaPP) >= 0 ? '+' : ''}{Number(deltaPP).toFixed(2)} pp</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-2 leading-relaxed">
                     Primary benchmark: AI predictive positioning vs frozen lookback baseline.

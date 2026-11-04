@@ -1,73 +1,44 @@
-# 🧠 Uber Marketplace Brain
+# Uber Marketplace Brain  (all data is SYNTHETIC)
 
-> AI-powered ride-hailing marketplace simulator with demand forecasting, driver positioning recommendations, and multi-agent intelligence.
+A ride-hailing marketplace **simulator + demand forecaster + driver-repositioning policy**, with three small web apps
+(rider, driver, admin). Everything runs on invented, seeded data.
 
-## Overview
+## Run it (no API keys needed)
+**Windows:** double-click `start_all.bat`  |  **Mac/Linux:** `bash scripts/start_all.sh`
 
-This project demonstrates an intelligent marketplace layer on top of a simulated Uber-like ride-hailing platform. It uses:
-- **Demand forecasting** (LLM + statistical models) to predict ride requests
-- **Driver positioning recommendations** with anti-crowding logic
-- **Multi-agent system** for rider, driver, and marketplace intelligence
-- **Real-time WebSocket** state broadcasting
-- **Baseline comparison** to measure actual improvement
+| App | URL |
+|---|---|
+| Rider | http://localhost:5173 |
+| Driver | http://localhost:5174 |
+| Admin | http://localhost:5175 |
+| API docs | http://localhost:8000/docs |
 
-## Architecture
+The first run installs the packages. If the backend is not running, the apps fall back to a small built-in JavaScript demo
+(not the Python model), so always start the backend to see the real simulator.
 
+## What is inside
 ```
-uber-marketplace-brain/
-├── backend/        FastAPI + WebSocket + AI agents
-├── frontend/       3 React/Vite apps (rider, driver, admin)
-├── docs/           Architecture, metrics, pitch
-├── data/           Synthetic datasets (clearly labelled)
-├── demo/           Scripted demo scenarios
-└── scripts/        Startup scripts
-```
-
-## Quick Start
-
-```bash
-# 1. Copy env vars
-cp .env.example .env
-# Fill in your GEMINI_KEY_1..4, OLLAMA_URL, JWT_SECRET
-
-# 2. Install backend deps
-cd backend && pip install -r requirements.txt
-
-# 3. Install frontend deps
-cd frontend/shared && npm install
-cd ../rider-app && npm install
-cd ../driver-app && npm install
-cd ../admin-dashboard && npm install
-
-# 4. Launch everything
-# On Windows (One-Click):
-start_all.bat
-
-# On Linux / macOS:
-bash scripts/start_all.sh
+backend/app/
+  simulator/    city.py  demand.py  drivers.py  traffic_weather.py  events.py  engine.py
+  forecasting/  demand_model.py (LightGBM)  supply_model.py  baseline.py  model_health.py  policy.py
+  evaluation/   run_eval.py -> results.json
+  world.py      turns the engine state into the JSON the apps use (WebSocket /ws/state)
+  main.py       FastAPI app + REST routers in api/
+frontend/       rider-app, driver-app, admin-dashboard, shared
 ```
 
-## Apps
+* **Simulator:** 12 zones, Poisson requests, driver state machine `Idle -> Assigned -> Driving to pickup -> Waiting -> On trip -> Drop-off -> Idle`, stale-GPS removal, weather and congestion, events (`trigger_stadium_end`, `trigger_surge`, `trigger_rain`), fixed seed.
+* **Forecasting:** LightGBM predicts requests per zone for the next 15 minutes. `supply = idle + incoming - finishing`. `baseline.py` is the frozen recent-demand baseline. `model_health.py` switches to the baseline and gives a reason string (stale inputs, missing zones, warm-up, rolling error too high, model error).
+* **Evaluation:** `cd backend && python -m app.evaluation.run_eval` runs the same seeded scenario with baseline vs proposed and writes `results.json`.
 
-| App              | URL                    | Description                        |
-|------------------|------------------------|------------------------------------|
-| Rider App        | http://localhost:5173  | Request rides, see ETAs            |
-| Driver App       | http://localhost:5174  | Accept rides, get positioning hints|
-| Admin Dashboard  | http://localhost:5175  | Scenarios, health, baseline compare|
-| Backend API      | http://localhost:8000  | FastAPI + WebSocket                |
-| API Docs         | http://localhost:8000/docs | Swagger UI                    |
+## Current results (seed 42, SYNTHETIC)
+* Forecast error (WAPE): LightGBM **0.317** vs baseline **0.436**, so the forecast is clearly better.
+* Fulfilment: baseline 75.44%, proposed 75.38%, gain **-0.06 pp**. Across 5 other seeds the mean gain is about 0.
+  In this simulator, nearest-driver dispatch already does most of the work, so better forecasts do not turn into more completed rides.
+  Do not present this as an improvement; see `results.json` for the exact numbers.
 
-## Metric
+## Tests
+`cd backend && python -m pytest -q` (28 tests)
 
-**Fulfilment Rate** = (Completed Requests / Total Requests) × 100%
-
-We compare against the **frozen baseline** (recent-demand: next 15 min = last 15 min).  
-See [docs/baseline_and_metric.md](docs/baseline_and_metric.md).
-
-## Team
-
-- TODO: Add team members here
-
-## License
-
-MIT
+## Optional
+Put Gemini keys in `.env` for nicer chat answers. Without keys the chat uses built-in templates.

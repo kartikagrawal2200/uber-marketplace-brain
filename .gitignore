@@ -59,3 +59,9 @@ Thumbs.db
 
 # Evaluation output logs
 data/synthetic/*.csv
+
+# Local runs
+node_modules/
+dist/
+logs/
+backend/marketplace.db

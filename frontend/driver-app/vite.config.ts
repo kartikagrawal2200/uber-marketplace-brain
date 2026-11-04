@@ -7,8 +7,8 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      '/api': 'http://localhost:8000',
-      '/ws': { target: 'ws://localhost:8000', ws: true },
+      '/api': process.env.BACKEND_URL || 'http://localhost:8000',
+      '/ws': { target: (process.env.BACKEND_URL || 'http://localhost:8000').replace(/^http/, 'ws'), ws: true },
     },
   },
   resolve: {

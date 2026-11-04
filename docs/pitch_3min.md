@@ -51,11 +51,11 @@ Key points:
 
 | | Baseline | AI System | Δ |
 |---|---|---|---|
-| Fulfilment Rate | ~71% | ~79% | **+8 pp** |
-| Avg Wait Time | 4m 12s | 2m 58s | **−29%** |
-| Surge Accuracy | — | 84% | — |
+| Fulfilment Rate (SYNTHETIC, seed 42) | 75.44% | 75.38% | -0.06 pp (about zero; see results.json) |
+| Forecast error (WAPE, lower is better) | 0.436 | 0.317 | forecast is clearly more accurate |
+| Avg pickup wait (SYNTHETIC) | 7.44 min | 7.48 min | about the same |
 
-> *"Eight percentage points doesn't sound like much until you realize that's 8 out of every 100 riders who got home instead of giving up."*
+> *"The forecast is 27% more accurate (WAPE 0.317 vs 0.436). In this synthetic city that does not yet change fulfilment, and we report that honestly."*
 
 ---
 

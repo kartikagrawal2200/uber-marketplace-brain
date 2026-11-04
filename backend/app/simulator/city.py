@@ -1,61 +1,105 @@
-"""city.py -- 12-zone city grid (4 cols x 3 rows) and base demand.
-*** SYNTHETIC DATA: every number here is invented for simulation; nothing is real ride-hailing data. ***"""
+"""city.py -- 12-zone city grid (4 columns x 3 rows), zone types and base demand per hour.
+
+*** SYNTHETIC DATA: every number in this file is invented for simulation.
+    Nothing here is real ride-hailing data. ***
+
+Zone ids are 0..11 (row-major).  The UI shows them as Zone 1..12.
+"""
 import numpy as np
 
+DATA_LABEL = "SYNTHETIC"
 COLS, ROWS = 4, 3
 N_ZONES = COLS * ROWS
 
-ZONE_NAMES = [
-    "Downtown", "Uptown", "Midtown", "Financial",
-    "OldTown", "Harbor", "SuburbsN", "SuburbsE",
-    "Industrial", "Airport", "SuburbsS", "SuburbsW",
+# (name, type).  Names match the three frontend apps so the map lines up.
+ZONES = [
+    ("Old Town",          "residential"),
+    ("Riverside",         "residential"),
+    ("Tech Park",         "office"),
+    ("Airport Road",      "airport"),
+    ("University",        "residential"),
+    ("Central Station",   "transit_hub"),
+    ("Stadium",           "stadium"),
+    ("Harbour",           "office"),
+    ("Market Street",     "mall"),
+    ("Business District", "office"),
+    ("Hospital",          "hospital"),
+    ("Lakeside",          "residential"),
 ]
+ZONE_NAMES = [n for n, _ in ZONES]
+ZONE_TYPES = [t for _, t in ZONES]
+ALL_TYPES = ("residential", "office", "mall", "airport", "stadium", "hospital", "transit_hub")
+STADIUM_ZONE = ZONE_TYPES.index("stadium")
 
-ZONE_TYPES = [
-    "commercial", "residential", "commercial", "commercial",
-    "entertainment", "industrial", "residential", "residential",
-    "industrial", "transit_hub", "residential", "residential",
-]
-
-X = np.array([(i % COLS) * 2.0 for i in range(N_ZONES)])
-Y = np.array([(i // COLS) * 2.0 for i in range(N_ZONES)])
-DIST = np.zeros((N_ZONES, N_ZONES))
-for i in range(N_ZONES):
-    for j in range(N_ZONES):
-        DIST[i, j] = np.sqrt((X[i] - X[j])**2 + (Y[i] - Y[j])**2)
-
-MANHATTAN = np.zeros((N_ZONES, N_ZONES))
-for i in range(N_ZONES):
-    for j in range(N_ZONES):
-        MANHATTAN[i, j] = abs(X[i] - X[j]) + abs(Y[i] - Y[j])
-
-SPEED_KMH = 30.0
-
-BASE_DEMAND = np.array([
-    [10, 8, 5, 4, 3, 5, 12, 28, 45, 38, 30, 28, 30, 32, 35, 42, 55, 60, 52, 40, 30, 24, 18, 14],
-    [12, 8, 5, 3, 3, 6, 18, 40, 30, 20, 18, 16, 18, 18, 20, 25, 35, 45, 50, 42, 32, 25, 20, 15],
-    [8, 5, 3, 2, 2, 4, 10, 25, 40, 35, 32, 30, 32, 34, 38, 45, 58, 62, 48, 35, 25, 20, 15, 10],
-    [5, 3, 2, 1, 1, 3, 8, 22, 50, 45, 38, 35, 38, 38, 40, 48, 60, 55, 35, 22, 15, 10, 8, 6],
-    [15, 12, 8, 5, 3, 3, 6, 10, 15, 18, 20, 22, 25, 25, 28, 32, 40, 48, 55, 60, 58, 45, 30, 20],
-    [4, 3, 2, 2, 2, 4, 8, 15, 18, 16, 15, 14, 15, 15, 16, 18, 20, 18, 14, 10, 8, 6, 5, 4],
-    [18, 12, 7, 4, 4, 8, 25, 50, 32, 18, 14, 12, 14, 14, 16, 20, 28, 38, 48, 52, 42, 35, 28, 22],
-    [16, 10, 6, 3, 3, 7, 22, 48, 28, 16, 12, 12, 12, 14, 15, 18, 25, 35, 45, 48, 40, 32, 25, 20],
-    [3, 2, 2, 2, 2, 5, 10, 18, 20, 16, 14, 14, 15, 15, 15, 18, 22, 18, 12, 8, 6, 5, 4, 3],
-    [20, 15, 12, 10, 8, 12, 18, 25, 30, 32, 30, 30, 32, 34, 35, 38, 42, 45, 42, 38, 35, 32, 28, 24],
-    [14, 10, 6, 3, 3, 6, 20, 45, 28, 16, 12, 12, 12, 12, 14, 18, 25, 35, 44, 48, 38, 30, 24, 18],
-    [15, 10, 6, 3, 3, 6, 20, 46, 30, 16, 12, 12, 12, 14, 15, 18, 26, 36, 45, 50, 40, 32, 25, 18],
-], dtype=float)
+# Per-zone size multiplier (a bigger zone makes more requests than a small one).
+ZONE_SCALE = np.array([0.9, 0.8, 1.0, 1.0, 0.9, 1.2, 1.0, 0.7, 1.0, 1.1, 0.8, 0.8])
 
 
-def get_base_demand(zone_id, hour):
-    return BASE_DEMAND[zone_id, int(hour) % 24]
+def _profile(night, day, peaks):
+    """24 hourly values (requests/hour) for a typical weekday.
+    night: level 0-5h, day: level for other hours, peaks: [(start_h, end_h, level)]"""
+    p = [night if h < 5 else day for h in range(24)]
+    for start, end, level in peaks:
+        for h in range(start, end):
+            p[h % 24] = level
+    return p
 
 
-def get_neighbors(zone_id):
-    r, c = zone_id // COLS, zone_id % COLS
-    nbrs = []
-    for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+# Requests per hour for ONE zone of each type on a weekday.
+TYPE_PROFILE = {
+    "residential": _profile(4, 14, [(6, 10, 38), (17, 22, 42)]),
+    "office":      _profile(3, 18, [(8, 10, 52), (17, 20, 56)]),
+    "mall":        _profile(2, 12, [(11, 16, 34), (16, 22, 52)]),
+    "airport":     _profile(14, 30, [(5, 9, 40), (19, 24, 38)]),
+    "stadium":     _profile(2, 7, [(18, 23, 14)]),
+    "hospital":    _profile(10, 16, [(9, 18, 20)]),
+    "transit_hub": _profile(5, 26, [(7, 10, 62), (17, 21, 66)]),
+}
+
+# DayFactor: (weekday, weekend)
+DAY_FACTOR = {
+    "residential": (1.0, 1.10),
+    "office":      (1.0, 0.45),
+    "mall":        (1.0, 1.35),
+    "airport":     (1.0, 1.05),
+    "stadium":     (1.0, 1.50),
+    "hospital":    (1.0, 0.95),
+    "transit_hub": (1.0, 0.70),
+}
+
+# Grid geometry -----------------------------------------------------------------
+def zone_col(z):
+    return z % COLS
+
+
+def zone_row(z):
+    return z // COLS
+
+
+MANHATTAN = np.zeros((N_ZONES, N_ZONES))      # distance in zone steps
+for _i in range(N_ZONES):
+    for _j in range(N_ZONES):
+        MANHATTAN[_i, _j] = abs(zone_col(_i) - zone_col(_j)) + abs(zone_row(_i) - zone_row(_j))
+
+KM_PER_STEP = 1.8
+
+
+def get_base_demand(zone, hour):
+    """Base requests/hour for a zone at an hour of the day (weekday, before DayFactor)."""
+    return float(TYPE_PROFILE[ZONE_TYPES[zone]][int(hour) % 24] * ZONE_SCALE[zone])
+
+
+def get_day_factor(zone, day):
+    """DayFactor: weekday vs weekend (day 0=Mon ... 6=Sun)."""
+    wk, we = DAY_FACTOR[ZONE_TYPES[zone]]
+    return we if (int(day) % 7) >= 5 else wk
+
+
+def get_neighbors(zone):
+    r, c = zone_row(zone), zone_col(zone)
+    out = []
+    for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
         nr, nc = r + dr, c + dc
         if 0 <= nr < ROWS and 0 <= nc < COLS:
-            nbrs.append(nr * COLS + nc)
-    return nbrs
+            out.append(nr * COLS + nc)
+    return out

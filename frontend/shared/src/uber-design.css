@@ -1,4 +1,4 @@
-/* Shared Uber Mobile Design System matching reference collage */
+/* Shared Uber-style design system tokens and utilities */
 :root {
   --bg-app: #F6F6FB;
   --bg-card: #FFFFFF;
@@ -10,161 +10,105 @@
   --color-text-main: #111827;
   --color-text-muted: #6B7280;
   --color-border: #E5E7EB;
-  --radius-card: 20px;
-  --radius-btn: 14px;
+  --radius-card: 16px;
+  --radius-btn: 12px;
 }
 
 body {
-  background-color: #0D0F12;
+  background-color: var(--bg-app);
   color: var(--color-text-main);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   margin: 0;
   padding: 0;
+}
+
+/* Mobile viewport container for Rider and Driver apps */
+.uber-mobile-frame {
+  max-width: 420px;
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#root {
-  width: 100%;
-}
-
-/* Uber Mobile Device Mockup Frame */
-.uber-phone-container {
-  width: 100%;
-  max-width: 390px;
-  height: 844px;
-  max-height: 94vh;
-  margin: 20px auto;
-  background-color: #FFFFFF;
-  border-radius: 44px;
-  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 10px #1F242C, 0 0 0 12px #2D333D;
-  overflow: hidden;
+  margin: 0 auto;
+  background-color: var(--bg-app);
   display: flex;
   flex-direction: column;
   position: relative;
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.06);
 }
 
-/* iOS Top Status Bar */
-.uber-status-bar {
-  height: 44px;
-  padding: 12px 24px 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
-  z-index: 40;
-  background: transparent;
-  flex-shrink: 0;
+/* Uber-style card */
+.uber-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(229, 231, 235, 0.6);
 }
 
-.uber-status-bar.dark-status {
-  color: #FFFFFF;
-}
-
-/* Bottom iOS Home Indicator */
-.uber-home-indicator {
-  width: 134px;
-  height: 5px;
-  background-color: #111827;
-  border-radius: 9999px;
-  margin: 8px auto 6px;
-  flex-shrink: 0;
-}
-
-.uber-home-indicator.dark-bar {
-  background-color: #FFFFFF;
-}
-
-/* Content Viewport */
-.uber-screen-content {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  scrollbar-width: none;
-}
-.uber-screen-content::-webkit-scrollbar {
-  display: none;
-}
-
-/* Primary black pill button */
+/* Uber primary solid black button */
 .uber-btn-black {
   background-color: #000000;
   color: #FFFFFF;
   font-weight: 700;
   font-size: 15px;
-  border-radius: 9999px;
-  padding: 15px 20px;
+  border-radius: var(--radius-btn);
+  padding: 14px 20px;
   width: 100%;
   border: none;
   cursor: pointer;
-  transition: transform 0.1s ease, opacity 0.15s ease;
+  transition: opacity 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
 }
-.uber-btn-black:active {
-  transform: scale(0.98);
-}
+
 .uber-btn-black:hover {
-  opacity: 0.92;
+  opacity: 0.9;
 }
 
-/* White outline button */
-.uber-btn-white {
-  background-color: #FFFFFF;
-  color: #000000;
+.uber-btn-black:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Pill badge */
+.uber-pill-green {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+  font-size: 11px;
   font-weight: 700;
-  font-size: 15px;
+  padding: 3px 10px;
   border-radius: 9999px;
-  padding: 14px 20px;
-  width: 100%;
-  border: 1px solid #E5E7EB;
-  cursor: pointer;
-  transition: background 0.15s ease;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-.uber-btn-white:hover {
-  background-color: #F9FAFB;
+  gap: 4px;
 }
 
-/* Bottom 4-tab bar */
-.uber-tab-bar {
+/* Bottom navigation bar */
+.uber-bottom-nav {
+  position: sticky;
+  bottom: 0;
   background: #FFFFFF;
-  border-top: 1px solid #F3F4F6;
+  border-top: 1px solid var(--color-border);
   display: flex;
   justify-content: space-around;
-  padding: 8px 0 4px;
+  padding: 10px 0 14px;
   z-index: 30;
-  flex-shrink: 0;
 }
 
-.uber-tab-btn {
+.uber-nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  font-size: 10px;
+  gap: 3px;
+  font-size: 11px;
   font-weight: 600;
-  color: #9CA3AF;
+  color: var(--color-text-muted);
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px 10px;
-  transition: color 0.15s;
 }
 
-.uber-tab-btn.active {
-  color: #000000;
-  font-weight: 700;
+.uber-nav-item.active {
+  color: var(--color-accent);
 }
+

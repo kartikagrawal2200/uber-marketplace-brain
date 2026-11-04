@@ -1,61 +1,32 @@
-"""
-api/driver.py — REST endpoints for the Driver App.
-"""
-
+"""api/driver.py -- REST endpoints for the Driver app.  ALL DATA IS SYNTHETIC."""
 from fastapi import APIRouter
-from pydantic import BaseModel
-from typing import Optional
 
 router = APIRouter()
-
-
-class HintResponse(BaseModel):
-    driver_id: str
-    accepted: bool
-    hint_id: Optional[str] = None
-
-
-class DriverChatQuery(BaseModel):
-    message: str
-    driver_id: str
+world = None           # set by main.py
 
 
 @router.get("/hint/{driver_id}")
 async def get_positioning_hint(driver_id: str) -> dict:
-    return {
-        "driver_id": driver_id,
-        "action": "stay",
-        "target_zone_id": None,
-        "reason": "TODO: implement hint retrieval",
-        "confidence": 0.0,
-        "note": "TODO: connect to PositioningRecommender",
-    }
+    rec = world.snapshot()["recommendation"]
+    if not rec:
+        return {"data": "SYNTHETIC", "driver_id": driver_id, "action": "stay", "target_zone_id": None,
+                "reason": "No zone is short of drivers right now.", "confidence": 0.0}
+    return {"data": "SYNTHETIC", "driver_id": driver_id, "action": "go", "target_zone_id": rec["zone"],
+            "reason": f"{rec['zone_name']}: demand {rec['demand_delta_pct']}% above its hourly average, "
+                      f"{rec['drive_min']} min away.", "confidence": rec["confidence"], "source": rec["source"]}
 
 
 @router.post("/hint/accept")
-async def accept_hint(body: HintResponse) -> dict:
-    return {"status": "recorded", "note": "TODO: implement acceptance tracking"}
+async def accept_hint() -> dict:
+    return {"data": "SYNTHETIC", "status": "accepted" if world.accept_rec() else "no active hint"}
 
 
 @router.post("/hint/reject")
-async def reject_hint(body: HintResponse) -> dict:
-    return {"status": "recorded", "note": "TODO: implement rejection tracking"}
+async def reject_hint() -> dict:
+    world.ignore_rec()
+    return {"data": "SYNTHETIC", "status": "ignored"}
 
 
 @router.get("/earnings/{driver_id}")
 async def get_earnings(driver_id: str) -> dict:
-    return {
-        "driver_id": driver_id,
-        "session_earnings": 0.0,
-        "completed_rides": 0,
-        "earnings_per_hour": 0.0,
-        "note": "TODO: connect to engine and DB",
-    }
-
-
-@router.post("/chat")
-async def driver_chat(body: DriverChatQuery) -> dict:
-    return {
-        "response": "TODO: implement driver chat via agent router",
-        "agent_type": "TODO",
-    }
+    return {"data": "SYNTHETIC", "driver_id": driver_id, **world.snapshot()["earnings"]}

@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     # --- App ---
     app_env: str = Field(default="development", alias="APP_ENV")
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
-    tick_interval_seconds: float = Field(default=5.0, alias="TICK_INTERVAL_SECONDS")
+    tick_interval_seconds: float = Field(default=1.0, alias="TICK_INTERVAL_SECONDS")
     simulation_seed: int = Field(default=42, alias="SIMULATION_SEED")
 
     # --- Database ---

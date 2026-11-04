@@ -1,14 +1,15 @@
-"""Frozen recent-demand baseline (no learning).  ALL DATA IS SYNTHETIC."""
-from .common import HORIZON, all_zones, request_matrix
+"""Frozen recent-demand baseline: next 15 min = the last 15 min.  No learning.  ALL DATA IS SYNTHETIC."""
+import numpy as np
 
-N_MINUTES = 30
+from .common import HORIZON, history_arrays
 
 
-def predict(snapshot_history, n_minutes=N_MINUTES):
-    recent = snapshot_history[-n_minutes:] if len(snapshot_history) >= n_minutes else snapshot_history
-    if not recent:
+def predict(snapshot_history, window=HORIZON):
+    """Expected requests per zone over the next HORIZON minutes."""
+    if not snapshot_history:
         return {}
-    zones = all_zones(recent[-1])
-    mat = request_matrix(recent)
-    means = np.mean(mat, axis=0) if mat.shape[0] else np.zeros(len(zones))
-    return {z: float(means[i] * HORIZON) for i, z in enumerate(zones)}
+    zones, R, *_ = history_arrays(snapshot_history)
+    recent = R[-window:]
+    scale = HORIZON / len(recent)
+    totals = recent.sum(axis=0) * scale
+    return {z: float(totals[i]) for i, z in enumerate(zones)}

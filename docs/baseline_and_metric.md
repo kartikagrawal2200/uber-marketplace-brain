@@ -40,7 +40,7 @@ $$
 \Delta \text{FR} = \text{FR}_{\text{AI system}} - \text{FR}_{\text{baseline}} \quad [\text{pp}]
 $$
 
-Example: Baseline FR = 71%, AI system FR = 79% → **+8 pp improvement**
+Example (format only): Baseline FR = 75.44%, proposed FR = 75.38% → -0.06 pp. The real numbers are always in `backend/app/evaluation/results.json`.
 
 ---
 

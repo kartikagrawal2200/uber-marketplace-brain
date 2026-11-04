@@ -1,3 +1,1 @@
-"""
-simulator/__init__.py
-"""
+"""Synthetic ride-hailing city simulator.  ALL DATA IS SYNTHETIC."""
